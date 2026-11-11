@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "commit-workflow": {
+      "source": "aka-cronos/skills",
+      "sourceType": "github",
+      "skillPath": "skills/commit-workflow/SKILL.md",
+      "computedHash": "d80cc1f9ad79ac5f765e8f6c165c44f078af9d040c5a5ead64964e6c82502365"
+    },
+    "create-pull-request": {
+      "source": "aka-cronos/skills",
+      "sourceType": "github",
+      "skillPath": "skills/create-pull-request/SKILL.md",
+      "computedHash": "0e12ff6396e823d8e8acdb3bcf04011bab36200b6e85fb38794497d573b0a062"
+    }
+  }
+}
