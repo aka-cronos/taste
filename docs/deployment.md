@@ -29,6 +29,24 @@ from forks before allowing them to build with account resources.
 See Cloudflare's [Builds setup](https://developers.cloudflare.com/workers/ci-cd/builds/)
 and [branch controls](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/).
 
+## Shared Preview resources
+
+All PR Previews share the `taste-preview` D1 database and the
+`taste-images-preview` R2 bucket declared under `previews` in `wrangler.jsonc`.
+They are separate from production, but changes in one Preview affect other
+Previews that use the same resources. Use synthetic test data only.
+
+For your own Cloudflare account, create these resources before the first Preview:
+
+```sh
+pnpm exec wrangler d1 create taste-preview --update-config=false
+pnpm exec wrangler r2 bucket create taste-images-preview --update-config=false
+```
+
+Replace `previews.d1_databases[0].database_id` with the ID returned by D1. The
+committed database ID is a public resource identifier, not an access credential.
+Preview URLs are public unless you configure access controls in Cloudflare.
+
 ## Activate branch protection
 
 Manage `protect-main` directly in the repository's **Settings > Rules > Rulesets**
