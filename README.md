@@ -21,6 +21,10 @@ After changing `wrangler.jsonc`, run `pnpm cf-typegen` to refresh the binding ty
 ## Deploy
 
 `pnpm run deploy` builds and deploys the Worker. On the first deploy, Wrangler
-creates the D1 database and R2 bucket declared in `wrangler.jsonc`, so no
-resource IDs live in the repo. Change the `routes` pattern to your own domain
-before deploying your own copy.
+creates the production D1 database and R2 bucket declared in `wrangler.jsonc`.
+Before deploying your own copy, change the `routes` pattern to your domain and
+configure your own Preview resources as described below.
+
+For the owner’s Git connection, preview builds, and branch protection setup, see
+[deployment setup](docs/deployment.md). For contributions, see
+[CONTRIBUTING.md](CONTRIBUTING.md).

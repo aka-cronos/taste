@@ -4,6 +4,7 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
+  "preview_urls": true,
   "observability": {
     "enabled": true
   },
@@ -15,8 +16,7 @@
       "custom_domain": true
     }
   ],
-  // No resource IDs are committed. `wrangler deploy` provisions the D1
-  // database and R2 bucket on first deploy and reuses them afterwards.
+  // Production resources are provisioned on first deploy and reused afterwards.
   "d1_databases": [
     {
       "binding": "DB",
@@ -29,5 +29,21 @@
       "binding": "BUCKET",
       "bucket_name": "taste-images"
     }
-  ]
+  ],
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "taste-preview",
+        "database_id": "d4f75dd5-6b5a-4fca-8109-917861653507",
+        "migrations_dir": "migrations"
+      }
+    ],
+    "r2_buckets": [
+      {
+        "binding": "BUCKET",
+        "bucket_name": "taste-images-preview"
+      }
+    ]
+  }
 }
