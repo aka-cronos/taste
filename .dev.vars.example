@@ -1,0 +1,10 @@
+# Local variables and secrets for `pnpm dev`.
+# Copy this file to `.dev.vars` and fill in the values. `.dev.vars` is gitignored.
+# In production, set the same names in the Cloudflare dashboard
+# (Workers & Pages → taste → Settings → Variables and Secrets) or with
+# `wrangler secret put <NAME>`.
+#
+# The scaffold needs no variables yet. Later features add theirs here, with a
+# one-line description each, for example:
+#
+# OWNER_EMAIL=you@example.com
