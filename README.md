@@ -24,3 +24,7 @@ After changing `wrangler.jsonc`, run `pnpm cf-typegen` to refresh the binding ty
 creates the D1 database and R2 bucket declared in `wrangler.jsonc`, so no
 resource IDs live in the repo. Change the `routes` pattern to your own domain
 before deploying your own copy.
+
+For the owner’s Git connection, preview builds, and branch protection setup, see
+[deployment setup](docs/deployment.md). For contributions, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
