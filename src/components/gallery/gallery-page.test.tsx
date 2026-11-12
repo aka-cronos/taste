@@ -18,6 +18,8 @@ import type { Owner } from '@/lib/auth/owner'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
 import { Route } from '@/routes/index'
 
+vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
+
 vi.mock('@/lib/items/server', () => ({
   listGallery: vi.fn(),
   listGalleryTags: vi.fn(),
@@ -31,9 +33,9 @@ beforeEach(() => {
   vi.mocked(listGalleryTags).mockResolvedValue(['poster', 'warm'])
 })
 
-async function openGallery(url: string) {
+async function openGallery(url: string, owner: Owner | null = null) {
   const root = createRootRoute({
-    beforeLoad: async (): Promise<{ owner: Owner | null }> => ({ owner: null }),
+    beforeLoad: async (): Promise<{ owner: Owner | null }> => ({ owner }),
   })
   const routeTree = root.addChildren([
     createRoute({ ...Route.options, getParentRoute: () => root, path: '/' }),
@@ -123,4 +125,16 @@ it('keeps filters when paging and replaces accumulated items when filters change
   expect(listGallery).toHaveBeenLastCalledWith({
     data: { q: 'warm', tags: ['poster'], type: 'note' },
   })
+})
+
+it('shows manual add only to the owner', async () => {
+  const { view } = await openGallery('/')
+  expect(screen.queryByRole('button', { name: 'Add item' })).toBeNull()
+  view.unmount()
+  await openGallery('/', {
+    email: 'owner@example.com',
+    image: null,
+    name: 'Owner',
+  })
+  expect(screen.getByRole('button', { name: 'Add item' })).toBeTruthy()
 })
