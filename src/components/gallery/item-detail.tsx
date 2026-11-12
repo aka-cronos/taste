@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { itemLabel } from '@/components/gallery/item-card'
 import type { GalleryItem } from '@/lib/items/model'
 import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
@@ -84,7 +85,13 @@ function CreditLine({ item }: { item: GalleryItem }) {
 }
 
 /** An item shown large, with its text, tags and credit. */
-export function ItemDetail({ item }: { item: GalleryItem }) {
+export function ItemDetail({
+  item,
+  editor,
+}: {
+  item: GalleryItem
+  editor?: ReactNode
+}) {
   const showDescription = item.type !== 'note' || Boolean(item.note)
   return (
     <main className='mx-auto max-w-6xl px-4 py-6'>
@@ -134,6 +141,7 @@ export function ItemDetail({ item }: { item: GalleryItem }) {
             </ul>
           ) : null}
           <CreditLine item={item} />
+          {editor}
         </div>
       </article>
     </main>

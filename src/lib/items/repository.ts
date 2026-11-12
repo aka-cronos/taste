@@ -32,20 +32,22 @@ interface ItemRow {
   type: ItemType
 }
 
-// Every public read goes through this filter, so inbox items can only be
-// reached by owner-only code paths.
-const PUBLISHED_ITEMS = `
+const ITEM_SELECT = `
   SELECT
     i.id, i.type, i.title, i.description, i.note, i.source_url,
     i.credit_author, i.credit_url, i.image_key, i.image_width,
-    i.image_height, i.published_at,
+    i.image_height, coalesce(i.published_at, i.created_at) AS published_at,
     (
       SELECT json_group_array(t.name)
       FROM item_tags it JOIN tags t ON t.id = it.tag_id
       WHERE it.item_id = i.id
     ) AS tags
   FROM items i
-  WHERE i.status = 'published'`
+  WHERE 1 = 1`
+
+// Every public read goes through this filter, so inbox items can only be
+// reached by owner-only code paths.
+const PUBLISHED_ITEMS = `${ITEM_SELECT} AND i.status = 'published'`
 
 function toGalleryItem(row: ItemRow): GalleryItem {
   const tags = (JSON.parse(row.tags) as string[]).sort((a, b) =>
@@ -159,4 +161,13 @@ export async function listPublishedTags(db: D1Database): Promise<string[]> {
   `)
     .all<{ name: string }>()
   return results.map(tag => tag.name)
+}
+
+/** Owner-only callers can also open inbox items. */
+export async function getOwnerGalleryItem(db: D1Database, id: string) {
+  const row = await db
+    .prepare(`${ITEM_SELECT} AND i.id = ?1`)
+    .bind(id)
+    .first<ItemRow>()
+  return row ? toGalleryItem(row) : null
 }

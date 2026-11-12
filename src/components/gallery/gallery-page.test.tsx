@@ -35,7 +35,10 @@ beforeEach(() => {
 
 async function openGallery(url: string, owner: Owner | null = null) {
   const root = createRootRoute({
-    beforeLoad: async (): Promise<{ owner: Owner | null }> => ({ owner }),
+    beforeLoad: async (): Promise<{
+      contactUrl: string | null
+      owner: Owner | null
+    }> => ({ contactUrl: null, owner }),
   })
   const routeTree = root.addChildren([
     createRoute({ ...Route.options, getParentRoute: () => root, path: '/' }),

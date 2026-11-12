@@ -23,8 +23,8 @@ The maintainer renders `.dev.vars` from `.dev.vars.tpl` with 1Password
 `pnpm dev` runs the app inside the Workers runtime with local D1 (`DB`) and R2
 (`BUCKET`) bindings. `GET /api/health` reports whether both are reachable.
 Stored images are served from R2 at `/media/<key>`: images of published items
-are public and cached for a year, images of inbox items are visible to the
-owner only.
+are public, images of inbox items are visible to the owner only. Media responses
+are not cached, so hiding or deleting an item takes effect on subsequent requests.
 
 Checks: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
 After changing `wrangler.jsonc`, run `pnpm cf-typegen` to refresh the binding types.
@@ -56,3 +56,15 @@ configure your own Preview resources as described below.
 For the owner’s Git connection, preview builds, and branch protection setup, see
 [deployment setup](docs/deployment.md). For contributions, see
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Item curation and takedown contact
+
+Sign in and open an item to edit its title, description, note, tags and credit
+in place. Tag suggestions include existing inbox tags and are owner-only.
+Move an item to the inbox to hide it; its detail URL stays accessible to the
+owner, who can publish it again. Deleting an item requires confirmation and
+permanently removes its stored image or link cover, tag links and search entry.
+
+Set `CONTACT_URL` in `wrangler.jsonc` (`vars`) to an `https://` contact page or a
+`mailto:` address to show a “Request removal” link in the site footer. Leave it
+empty to omit the link. Locally, it can be overridden in `.dev.vars`.

@@ -1,25 +1,67 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
+import { ItemEditor } from '@/components/gallery/item-editor'
+import type { Owner } from '@/lib/auth/owner'
+import { useOwner } from '@/lib/auth/use-owner'
+import type { ItemEditorData } from '@/lib/items/edit-input'
+import { getOwnerItem } from '@/lib/items/manage-server'
+import type { GalleryItem } from '@/lib/items/model'
 import { getGalleryItem } from '@/lib/items/server'
+
+async function loadItem({
+  params,
+  context,
+}: {
+  params: { id: string }
+  context: { owner: Owner | null }
+}): Promise<{
+  item: GalleryItem
+  editor: ItemEditorData | null
+  tags: string[]
+}> {
+  const result = context.owner
+    ? await getOwnerItem({ data: { id: params.id } })
+    : {
+        editor: null,
+        item: await getGalleryItem({ data: { id: params.id } }),
+        tags: [],
+      }
+  const { item } = result
+  if (!item) {
+    throw notFound()
+  }
+  return { ...result, item }
+}
 
 export const Route = createFileRoute('/items/$id')({
   component: ItemPage,
   head: ({ loaderData }) => ({
-    meta: loaderData ? [{ title: `${itemLabel(loaderData)} · Taste` }] : [],
+    meta: loaderData
+      ? [{ title: `${itemLabel(loaderData.item)} · Taste` }]
+      : [],
   }),
-  loader: async ({ params }) => {
-    const item = await getGalleryItem({ data: { id: params.id } })
-    if (!item) {
-      throw notFound()
-    }
-    return item
-  },
+  loader: loadItem,
   notFoundComponent: ItemNotFound,
 })
 
 function ItemPage() {
-  return <ItemDetail item={Route.useLoaderData()} />
+  const { item, editor, tags } = Route.useLoaderData()
+  const owner = useOwner()
+  return (
+    <ItemDetail
+      editor={
+        owner && editor ? (
+          <ItemEditor
+            initial={editor}
+            key={JSON.stringify(editor)}
+            tags={tags}
+          />
+        ) : null
+      }
+      item={item}
+    />
+  )
 }
 
 function ItemNotFound() {

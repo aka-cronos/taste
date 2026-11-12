@@ -54,13 +54,11 @@ beforeEach(() => {
 })
 
 describe('serveMedia', () => {
-  it('serves published files with long cache headers', async () => {
+  it('serves published files without caching so hiding takes effect', async () => {
     const response = await serve('k/pub.png')
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('bytes of k/pub.png')
-    expect(response.headers.get('cache-control')).toBe(
-      'public, max-age=31536000, immutable',
-    )
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('content-type')).toBe('image/png')
     expect(response.headers.get('etag')).toBe(ETAG)
     expect(response.headers.get('content-security-policy')).toContain('sandbox')

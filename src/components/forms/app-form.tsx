@@ -1,6 +1,23 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form'
-import { type ComponentProps, type ReactNode, useId, useRef } from 'react'
+import {
+  type ComponentProps,
+  type ReactNode,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from '@/components/ui/combobox'
 import {
   Field,
   FieldDescription,
@@ -10,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
+import { normalizeTagName } from '@/lib/items/model'
 
 const { fieldContext, formContext, useFieldContext, useFormContext } =
   createFormHookContexts()
@@ -89,6 +107,7 @@ function accessibility(
 interface TextProps {
   description?: ReactNode
   label: string
+  maxLength?: number
   placeholder?: string
 }
 function TextField({ label, description, ...props }: TextProps) {
@@ -213,6 +232,69 @@ function FileField({
     </Frame>
   )
 }
+function TagsField({
+  label,
+  suggestions,
+  disabled = false,
+}: {
+  label: string
+  suggestions: string[]
+  disabled?: boolean
+}) {
+  const control = useFieldControl<string[]>()
+  const tags = control.field.state.value
+  const anchor = useComboboxAnchor()
+  const [query, setQuery] = useState('')
+  const newTag = normalizeTagName(query)
+  const items = [
+    ...new Set([...suggestions, ...tags, ...(newTag ? [newTag] : [])]),
+  ]
+  return (
+    <Frame control={control} label={label}>
+      <Combobox
+        disabled={disabled}
+        inputValue={query}
+        items={items}
+        multiple
+        onInputValueChange={setQuery}
+        onValueChange={value => {
+          control.change(value)
+          setQuery('')
+        }}
+        value={tags}
+      >
+        <ComboboxChips ref={anchor}>
+          <ComboboxValue>
+            {(values: string[]) =>
+              values.map(value => (
+                <ComboboxChip aria-label={`Remove ${value}`} key={value}>
+                  {value}
+                </ComboboxChip>
+              ))
+            }
+          </ComboboxValue>
+          <ComboboxChipsInput
+            {...accessibility(control)}
+            onBlur={control.field.handleBlur}
+            placeholder='Find or create a tag'
+          />
+        </ComboboxChips>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxList>
+            {(tag: string) => (
+              <ComboboxItem key={tag} value={tag}>
+                {suggestions.includes(tag) || tags.includes(tag)
+                  ? tag
+                  : `Create “${tag}”`}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </Frame>
+  )
+}
+
 function SubmitButton({ children, ...props }: ComponentProps<typeof Button>) {
   const form = useFormContext()
   return (
@@ -226,7 +308,13 @@ function SubmitButton({ children, ...props }: ComponentProps<typeof Button>) {
   )
 }
 export const { useAppForm } = createFormHook({
-  fieldComponents: { FileField, SelectField, TextareaField, TextField },
+  fieldComponents: {
+    FileField,
+    SelectField,
+    TagsField,
+    TextareaField,
+    TextField,
+  },
   fieldContext,
   formComponents: { SubmitButton },
   formContext,

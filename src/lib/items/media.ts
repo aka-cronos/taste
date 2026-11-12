@@ -1,8 +1,5 @@
 import { getMediaStatus } from '@/lib/items/repository'
 
-// Keys are unique per stored file and never reused, so a published image can
-// be cached for a year.
-const PUBLIC_CACHE = 'public, max-age=31536000, immutable'
 const PRIVATE_CACHE = 'private, no-store'
 
 interface ServeMediaOptions {
@@ -45,10 +42,7 @@ export async function serveMedia({
   const headers = new Headers()
   object.writeHttpMetadata(headers)
   headers.set('etag', object.httpEtag)
-  headers.set(
-    'cache-control',
-    status === 'published' ? PUBLIC_CACHE : PRIVATE_CACHE,
-  )
+  headers.set('cache-control', PRIVATE_CACHE)
   // Stored files come from the web. Never let one run as a page on this
   // origin (an SVG with a script, an HTML file with an image extension).
   headers.set('content-security-policy', "default-src 'none'; sandbox")
