@@ -19,3 +19,6 @@ BETTER_AUTH_SECRET=replace-with-a-random-secret-of-32-chars-or-more
 # (type "Web application").
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
+
+# Optional public contact page or mailto: address for takedown requests.
+CONTACT_URL=
