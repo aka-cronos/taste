@@ -31,6 +31,15 @@
       }
     }
   },
+  "overrides": [
+    {
+      // TanStack Router names splat and param routes with `$` (e.g. `$.ts`).
+      "includes": ["src/routes/**"],
+      "linter": {
+        "rules": { "style": { "useFilenamingConvention": "off" } }
+      }
+    }
+  ],
   "css": {
     "parser": {
       "tailwindDirectives": true

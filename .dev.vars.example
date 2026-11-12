@@ -3,8 +3,19 @@
 # In production, set the same names in the Cloudflare dashboard
 # (Workers & Pages → taste → Settings → Variables and Secrets) or with
 # `wrangler secret put <NAME>`.
-#
-# The scaffold needs no variables yet. Later features add theirs here, with a
-# one-line description each, for example:
-#
-# OWNER_EMAIL=you@example.com
+
+# The only Google account allowed to sign in. Any other account is rejected.
+OWNER_EMAIL=you@example.com
+
+# Public URL of the site, without a trailing slash. Google redirects to
+# `<BETTER_AUTH_URL>/api/auth/callback/google`.
+BETTER_AUTH_URL=http://localhost:3000
+
+# Random secret that signs sessions, at least 32 characters.
+# Generate one with `openssl rand -base64 32`.
+BETTER_AUTH_SECRET=replace-with-a-random-secret-of-32-chars-or-more
+
+# OAuth client from Google Cloud Console → APIs & Services → Credentials
+# (type "Web application").
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
