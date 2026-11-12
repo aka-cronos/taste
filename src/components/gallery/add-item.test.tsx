@@ -6,10 +6,12 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AddItem } from '@/components/gallery/add-item'
 import { addManualItem } from '@/lib/items/add'
 
+vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
 const onSaved = vi.fn().mockResolvedValue(undefined)
 const saved = {
@@ -53,7 +55,8 @@ it('pastes a note and publishes it with description and tags', async () => {
   expect(data?.get('note')).toBe('Warm colors and strong typography')
   expect(data?.get('description')).toBe('A palette')
   expect(data?.get('tags')).toBe('Warm, Type')
-  expect(screen.getByRole('status').textContent).toContain('Published')
+  expect(toast.success).toHaveBeenCalledWith('Published to your gallery.')
+  expect(screen.queryByLabelText('Note')).toBeNull()
 })
 
 it('detects a pasted URL as a link without intercepting typing in form fields', async () => {
@@ -117,16 +120,16 @@ it('retains the form after an error and reports merged duplicates on retry', asy
   pasteText('https://example.com/')
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await waitFor(() =>
-    expect(screen.getByRole('status').textContent).toContain(
-      'Page unavailable',
-    ),
+    expect(screen.getByRole('alert').textContent).toContain('Page unavailable'),
   )
   expect((screen.getByLabelText('URL') as HTMLInputElement).value).toBe(
     'https://example.com/',
   )
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await waitFor(() =>
-    expect(screen.getByRole('status').textContent).toContain('New tags merged'),
+    expect(toast.success).toHaveBeenCalledWith(
+      'Already saved. New tags merged.',
+    ),
   )
 })
 
@@ -143,8 +146,134 @@ it('prevents a second submission while a save is pending', async () => {
   const submit = screen.getByRole('button', { name: 'Publish item' })
   fireEvent.click(submit)
   fireEvent.click(submit)
-  expect(addManualItem).toHaveBeenCalledOnce()
+  await waitFor(() => expect(addManualItem).toHaveBeenCalledOnce())
   await act(() => {
     finish?.(saved)
   })
+})
+
+it('validates after blur and clears errors when corrected', async () => {
+  render(<AddItem onSaved={onSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  const url = screen.getByLabelText('URL')
+  fireEvent.change(url, { target: { value: 'invalid' } })
+  expect(screen.queryByRole('alert')).toBeNull()
+  fireEvent.blur(url)
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe('Invalid URL.'),
+  )
+  expect(url.getAttribute('aria-invalid')).toBe('true')
+  expect(
+    document.querySelector(`[id="${url.getAttribute('aria-describedby')}"]`)
+      ?.textContent,
+  ).toBe('Invalid URL.')
+  fireEvent.change(url, { target: { value: 'https://example.com/' } })
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  fireEvent.change(url, { target: { value: 'invalid again' } })
+  await screen.findByText('Invalid URL.')
+})
+
+it('places server schema failures on the corresponding field', async () => {
+  vi.mocked(addManualItem).mockResolvedValueOnce({
+    fieldErrors: { sourceUrl: 'Server URL error' },
+  })
+  render(<AddItem onSaved={onSaved} />)
+  pasteText('https://example.com/')
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await screen.findByText('Server URL error')
+  const url = screen.getByLabelText('URL')
+  expect(url.getAttribute('aria-invalid')).toBe('true')
+  expect((url as HTMLInputElement).value).toBe('https://example.com/')
+  fireEvent.change(url, { target: { value: 'https://example.com/fixed' } })
+  await waitFor(() => expect(screen.queryByText('Server URL error')).toBeNull())
+})
+
+it('shows a field error when submitting without an image', async () => {
+  render(<AddItem onSaved={onSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  fireEvent.change(screen.getByLabelText('Item type'), {
+    target: { value: 'image' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await screen.findByText('Choose an image first.')
+  expect(screen.getByLabelText('Image').getAttribute('aria-invalid')).toBe(
+    'true',
+  )
+  expect(addManualItem).not.toHaveBeenCalled()
+})
+
+it.each(['size', 'type'])(
+  'immediately rejects an image with invalid %s',
+  async reason => {
+    render(<AddItem onSaved={onSaved} />)
+    const file =
+      reason === 'size'
+        ? new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'big.png', {
+            type: 'image/png',
+          })
+        : new File(['text'], 'file.txt', { type: 'text/plain' })
+    fireEvent.paste(document.body, { clipboardData: { files: [file] } })
+    await screen.findByText(
+      'Choose a PNG, JPEG, GIF or WebP image up to 10 MB.',
+    )
+    const image = screen.getByLabelText('Image')
+    expect(image.getAttribute('aria-invalid')).toBe('true')
+    for (const id of image.getAttribute('aria-describedby')?.split(' ') ?? []) {
+      expect(document.querySelector(`[id="${id}"]`)).toBeTruthy()
+    }
+  },
+)
+
+it('gives controls unique ids when two forms are mounted', () => {
+  render(
+    <>
+      <AddItem onSaved={onSaved} />
+      <AddItem onSaved={onSaved} />
+    </>,
+  )
+  for (const button of screen.getAllByRole('button', { name: 'Add item' })) {
+    fireEvent.click(button)
+  }
+  const urls = screen.getAllByLabelText('URL')
+  expect(urls[0]?.id).not.toBe(urls[1]?.id)
+})
+
+it('does not intercept image pastes in text fields', () => {
+  render(<AddItem onSaved={onSaved} />)
+  pasteText('A note')
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: { files: [new File(['png'], 'image.png', { type: 'image/png' })] },
+  })
+  fireEvent(screen.getByLabelText('Note'), event)
+  expect(event.defaultPrevented).toBe(false)
+  expect(screen.getByLabelText('Note')).toBeTruthy()
+})
+
+it('can correct a missing image after submit and publish', async () => {
+  render(<AddItem onSaved={onSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  fireEvent.change(screen.getByLabelText('Item type'), {
+    target: { value: 'image' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await screen.findByText('Choose an image first.')
+  fireEvent.change(screen.getByLabelText('Image'), {
+    target: { files: [new File(['png'], 'image.png', { type: 'image/png' })] },
+  })
+  await waitFor(() =>
+    expect(screen.queryByText('Choose an image first.')).toBeNull(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+})
+
+it('keeps errors hidden on an unblurred field when another field validates', () => {
+  render(<AddItem onSaved={onSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  fireEvent.blur(screen.getByLabelText('Description'))
+  fireEvent.change(screen.getByLabelText('URL'), {
+    target: { value: 'invalid' },
+  })
+  expect(screen.queryByRole('alert')).toBeNull()
 })

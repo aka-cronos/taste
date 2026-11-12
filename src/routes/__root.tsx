@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { SiteHeader } from '@/components/site-header'
+import { Toaster } from '@/components/ui/sonner'
 import { authClient } from '@/lib/auth/client'
 import { NOT_AUTHORIZED, NOT_AUTHORIZED_MESSAGE } from '@/lib/auth/owner'
 import { getOwner } from '@/lib/auth/session'
@@ -82,6 +83,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body>
         {children}
+        <Toaster />
         <Scripts />
       </body>
     </html>
