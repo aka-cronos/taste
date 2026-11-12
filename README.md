@@ -7,7 +7,7 @@ Requires Node 22+ and pnpm.
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars   # local variables, if any
+cp .dev.vars.example .dev.vars   # then fill in the values
 pnpm db:migrate:local            # apply D1 migrations to the local database
 pnpm dev                         # http://localhost:3000
 ```
@@ -17,6 +17,23 @@ pnpm dev                         # http://localhost:3000
 
 Checks: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
 After changing `wrangler.jsonc`, run `pnpm cf-typegen` to refresh the binding types.
+
+## Owner sign-in
+
+Only one person, the owner, can sign in, with Google. Any other Google account
+is turned away and no user is created for it.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   create an OAuth client of type **Web application**. Add
+   `http://localhost:3000/api/auth/callback/google` and
+   `https://<your-domain>/api/auth/callback/google` as authorized redirect URIs.
+2. Set the variables listed in `.dev.vars.example`: `OWNER_EMAIL`,
+   `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`. Locally they go in `.dev.vars`; in production, add
+   them as secrets with `pnpm exec wrangler secret put <NAME>`.
+
+The auth tables are created in D1 automatically by the Worker on its first
+request after a deploy, so there is no migration to run for them.
 
 ## Deploy
 
