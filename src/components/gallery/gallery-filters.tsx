@@ -1,4 +1,8 @@
 import { Button } from '@/components/ui/button'
+import { Field, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ITEM_TYPES } from '@/lib/items/model'
 import {
   type GalleryFilters as Filters,
@@ -29,12 +33,9 @@ export function GalleryFilters({
             onChange(normalizeGalleryFilters({ ...filters, q: data.get('q') }))
           }}
         >
-          <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-            <label className='text-sm font-medium' htmlFor='gallery-search'>
-              Search
-            </label>
-            <input
-              className='border-input bg-background focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-base outline-none focus-visible:ring-3'
+          <Field className='min-w-0 flex-1'>
+            <FieldLabel htmlFor='gallery-search'>Search</FieldLabel>
+            <Input
               defaultValue={filters.q ?? ''}
               id='gallery-search'
               key={filters.q ?? ''}
@@ -42,16 +43,13 @@ export function GalleryFilters({
               placeholder='Search the gallery…'
               type='search'
             />
-          </div>
+          </Field>
           <Button type='submit' variant='outline'>
             Search
           </Button>
-          <div className='flex flex-col gap-1.5'>
-            <label className='text-sm font-medium' htmlFor='gallery-type'>
-              Type
-            </label>
-            <select
-              className='border-input bg-background h-9 rounded-md border px-3 text-base'
+          <Field className='w-auto'>
+            <FieldLabel htmlFor='gallery-type'>Type</FieldLabel>
+            <NativeSelect
               id='gallery-type'
               onChange={event =>
                 onChange(
@@ -63,46 +61,46 @@ export function GalleryFilters({
               }
               value={filters.type ?? ''}
             >
-              <option value=''>All types</option>
+              <NativeSelectOption value=''>All types</NativeSelectOption>
               {ITEM_TYPES.map(type => (
-                <option key={type} value={type}>
+                <NativeSelectOption key={type} value={type}>
                   {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
-          </div>
+            </NativeSelect>
+          </Field>
         </form>
       </search>
       {availableTags.length ? (
-        <fieldset className='flex flex-wrap gap-2'>
-          <legend className='mb-2 text-sm font-medium'>
+        <FieldSet>
+          <FieldLegend id='gallery-tags-label' variant='label'>
             Tags{' '}
             <span className='text-muted-foreground font-normal'>
               (match all selected)
             </span>
-          </legend>
-          {availableTags.map(tag => (
-            <Button
-              aria-pressed={selected.includes(tag)}
-              className='h-auto max-w-full rounded-full [overflow-wrap:anywhere] whitespace-normal'
-              key={tag}
-              onClick={() =>
-                onChange(
-                  normalizeGalleryFilters({
-                    ...filters,
-                    tags: selected.includes(tag)
-                      ? selected.filter(value => value !== tag)
-                      : [...selected, tag],
-                  }),
-                )
-              }
-              size='sm'
-              variant={selected.includes(tag) ? 'default' : 'outline'}
-            >
-              {tag}
-            </Button>
-          ))}
-        </fieldset>
+          </FieldLegend>
+          <ToggleGroup
+            aria-labelledby='gallery-tags-label'
+            className='max-w-full flex-wrap'
+            multiple
+            onValueChange={nextTags =>
+              onChange(normalizeGalleryFilters({ ...filters, tags: nextTags }))
+            }
+            size='sm'
+            value={selected}
+            variant='outline'
+          >
+            {availableTags.map(tag => (
+              <ToggleGroupItem
+                className='h-auto max-w-full rounded-full [overflow-wrap:anywhere] whitespace-normal'
+                key={tag}
+                value={tag}
+              >
+                {tag}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </FieldSet>
       ) : null}
       {filters.q || filters.type || selected.length ? (
         <Button
