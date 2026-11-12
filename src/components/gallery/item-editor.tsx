@@ -119,19 +119,28 @@ export function ItemEditor({
   const [busy, setBusy] = useState(false)
   const pending = useRef<boolean>(false)
   const [message, setMessage] = useState('')
+  const [deleteMessage, setDeleteMessage] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    operation: 'update' | 'delete' = 'update',
+  ) {
     if (pending.current) {
       return
     }
     pending.current = true
     setBusy(true)
-    setMessage('')
+    const setError = operation === 'delete' ? setDeleteMessage : setMessage
+    setError('')
     try {
       await action()
     } catch {
-      setMessage('Could not update the item. Please try again.')
+      setError(
+        operation === 'delete'
+          ? 'Could not delete the item. Please try again.'
+          : 'Could not update the item. Please try again.',
+      )
     } finally {
       pending.current = false
       setBusy(false)
@@ -159,7 +168,8 @@ export function ItemEditor({
           {editing ? 'Cancel editing' : 'Edit item'}
         </Button>
         <Button
-          disabled={busy}
+          aria-describedby={editing ? 'visibility-help' : undefined}
+          disabled={busy || editing}
           onClick={() =>
             run(async () => {
               await changeItemVisibility({
@@ -183,6 +193,11 @@ export function ItemEditor({
           {initial.status === 'published' ? 'Move to inbox' : 'Publish item'}
         </Button>
       </div>
+      {editing ? (
+        <p className='text-muted-foreground text-sm' id='visibility-help'>
+          Save or cancel your edits before changing visibility.
+        </p>
+      ) : null}
       {editing ? (
         <form
           onSubmit={event => {
@@ -243,6 +258,7 @@ export function ItemEditor({
       <AlertDialog
         onOpenChange={open => {
           if (!pending.current) {
+            setDeleteMessage('')
             setConfirmDelete(open)
           }
         }}
@@ -262,7 +278,7 @@ export function ItemEditor({
               trash and this cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {message ? <p role='alert'>{message}</p> : null}
+          {deleteMessage ? <p role='alert'>{deleteMessage}</p> : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -274,7 +290,7 @@ export function ItemEditor({
                   toast.success('Item permanently deleted.')
                   await router.navigate({ to: '/' })
                   await router.invalidate()
-                })
+                }, 'delete')
               }
               variant='destructive'
             >
