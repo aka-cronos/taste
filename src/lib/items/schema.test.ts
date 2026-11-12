@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestD1 } from '@/test/d1'
 import { insertItem, tagItem } from '@/test/items'
@@ -96,6 +97,53 @@ describe('items schema', () => {
     expect(() => insertItem(sqlite, { id: 'c', publishedAt: null })).toThrow(
       CHECK_FAILED,
     )
+  })
+
+  it('clears legacy cover hashes without changing originals or stored files', () => {
+    insertItem(sqlite, {
+      contentHash: 'original-hash',
+      id: 'image',
+      type: 'image',
+    })
+    insertItem(sqlite, {
+      contentHash: 'cover-hash',
+      id: 'link',
+      imageKey: 'items/cover.png',
+      sourceUrl: 'https://example.com/page',
+      tags: ['page'],
+      type: 'link',
+    })
+    sqlite.exec(
+      readFileSync(
+        new URL(
+          '../../../migrations/0002_original_image_hashes.sql',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    )
+    expect(
+      sqlite
+        .prepare('SELECT content_hash FROM items WHERE id = ?')
+        .get('image'),
+    ).toEqual({ content_hash: 'original-hash' })
+    expect(
+      sqlite
+        .prepare(
+          'SELECT content_hash, image_key, source_url FROM items WHERE id = ?',
+        )
+        .get('link'),
+    ).toEqual({
+      content_hash: null,
+      image_key: 'items/cover.png',
+      source_url: 'https://example.com/page',
+    })
+    insertItem(sqlite, {
+      contentHash: 'cover-hash',
+      id: 'cover-original',
+      type: 'image',
+    })
+    expect(search('tags:page')).toEqual(['link'])
   })
 
   it('requires a stored file for image items', () => {

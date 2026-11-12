@@ -89,6 +89,66 @@ describe('ingestItem', () => {
     })
   })
 
+  it('keeps distinct links with the same cover and their tags separate', async () => {
+    const first = await save({
+      sourceUrl: 'https://example.com/one',
+      tags: ['one'],
+      type: 'link',
+    })
+    const second = await save({
+      sourceUrl: 'https://example.com/two',
+      tags: ['two'],
+      type: 'link',
+    })
+    expect(second.duplicate).toBe(false)
+    expect(second.item.id).not.toBe(first.item.id)
+    expect(second.item.source_url).toBe('https://example.com/two')
+    expect((await getPublishedItem(db, first.item.id))?.tags).toEqual(['one'])
+    expect((await getPublishedItem(db, second.item.id))?.tags).toEqual(['two'])
+    expect((await listPublishedItems(db, {})).items).toHaveLength(2)
+    expect(bucket.put).toHaveBeenCalledTimes(2)
+    expect(bucket.delete).not.toHaveBeenCalled()
+  })
+
+  it.each(['image-first', 'link-first'])(
+    'keeps an original image distinct from a matching link cover: %s',
+    async order => {
+      const imageInput: Partial<IngestInput> = {
+        image: png,
+        tags: ['original'],
+        type: 'image',
+      }
+      const linkInput: Partial<IngestInput> = {
+        sourceUrl: 'https://example.com/page',
+        tags: ['page'],
+        type: 'link',
+      }
+      const inputs =
+        order === 'image-first'
+          ? [imageInput, linkInput]
+          : [linkInput, imageInput]
+      const first = await save(inputs[0])
+      const second = await save(inputs[1])
+      expect(second.duplicate).toBe(false)
+      expect(second.item.id).not.toBe(first.item.id)
+      const imageDuplicate = await save(imageInput)
+      expect(imageDuplicate.duplicate).toBe(true)
+      expect(imageDuplicate.item.type).toBe('image')
+      expect(imageDuplicate.item.tags).toEqual(['original'])
+      expect((await listPublishedItems(db, {})).items).toHaveLength(2)
+    },
+  )
+
+  it('keeps concurrent saves of distinct URLs with matching covers separate', async () => {
+    const results = await Promise.all([
+      save({ sourceUrl: 'https://example.com/one', type: 'link' }),
+      save({ sourceUrl: 'https://example.com/two', type: 'link' }),
+    ])
+    expect(results.every(result => !result.duplicate)).toBe(true)
+    expect(results[0]?.item.id).not.toBe(results[1]?.item.id)
+    expect((await listPublishedItems(db, {})).items).toHaveLength(2)
+  })
+
   it('deduplicates source URLs before fetching metadata again', async () => {
     const first = await save({
       sourceUrl: 'https://example.com/post#top',
