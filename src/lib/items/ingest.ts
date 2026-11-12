@@ -83,6 +83,22 @@ function validateInput(input: IngestInput) {
   }
 }
 
+async function originalImageHash(
+  type: ItemType,
+  image: StoredImage | undefined,
+) {
+  if (type !== 'image' || !image) {
+    return null
+  }
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new Uint8Array(image.bytes),
+  )
+  return Array.from(new Uint8Array(digest), byte =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+}
+
 export async function ingestItem(
   { db, bucket }: { db: D1Database; bucket: Pick<R2Bucket, 'put' | 'delete'> },
   input: IngestInput,
@@ -108,14 +124,7 @@ export async function ingestItem(
     title ||= metadata.title
     description ||= metadata.description
   }
-  const hash = image
-    ? Array.from(
-        new Uint8Array(
-          await crypto.subtle.digest('SHA-256', new Uint8Array(image.bytes)),
-        ),
-        byte => byte.toString(16).padStart(2, '0'),
-      ).join('')
-    : null
+  const hash = await originalImageHash(input.type, image)
   const key = image ? `items/${id}` : null
   const match =
     'SELECT id FROM items WHERE id = ?1 OR (?2 IS NOT NULL AND source_url = ?2) OR (?3 IS NOT NULL AND content_hash = ?3) ORDER BY CASE WHEN source_url = ?2 THEN 0 ELSE 1 END, created_at, id LIMIT 1'
