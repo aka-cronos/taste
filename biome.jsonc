@@ -33,6 +33,14 @@
   },
   "overrides": [
     {
+      // Plain JS: types inferred from literal data make every optional field
+      // look always-present.
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": { "suspicious": { "noUnnecessaryConditions": "off" } }
+      }
+    },
+    {
       // TanStack Router names splat and param routes with `$` (e.g. `$.ts`).
       "includes": ["src/routes/**"],
       "linter": {
