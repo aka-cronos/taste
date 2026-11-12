@@ -8,16 +8,21 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { Toaster } from '@/components/ui/sonner'
 import { authClient } from '@/lib/auth/client'
 import { NOT_AUTHORIZED, NOT_AUTHORIZED_MESSAGE } from '@/lib/auth/owner'
 import { getOwner } from '@/lib/auth/session'
+import { getContactUrl } from '@/lib/site-config'
 import { themeInitScript } from '@/lib/theme'
 import appCss from '@/styles.css?url'
 
 export const Route = createRootRoute({
-  beforeLoad: async () => ({ owner: await getOwner() }),
+  beforeLoad: async () => {
+    const [owner, contactUrl] = await Promise.all([getOwner(), getContactUrl()])
+    return { contactUrl, owner }
+  },
   component: RootLayout,
   head: () => ({
     links: [{ href: appCss, rel: 'stylesheet' }],
@@ -69,6 +74,7 @@ function RootLayout() {
         owner={owner}
       />
       <Outlet />
+      <SiteFooter contactUrl={Route.useRouteContext().contactUrl} />
     </>
   )
 }
