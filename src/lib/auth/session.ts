@@ -1,19 +1,11 @@
-import { env } from 'cloudflare:workers'
 import { createMiddleware, createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
-import {
-  type Owner,
-  ownerFromSession,
-  UnauthorizedError,
-} from '@/lib/auth/owner'
-import { ensureAuthSchema, getAuth } from '@/lib/auth/server'
+import type { Owner } from '@/lib/auth/owner'
+import { UnauthorizedError } from '@/lib/auth/owner'
+import { ownerFromHeaders } from '@/lib/auth/request'
 
-async function currentOwner(): Promise<Owner | null> {
-  await ensureAuthSchema()
-  const session = await getAuth().api.getSession({
-    headers: getRequestHeaders(),
-  })
-  return ownerFromSession(session, env.OWNER_EMAIL)
+function currentOwner(): Promise<Owner | null> {
+  return ownerFromHeaders(getRequestHeaders())
 }
 
 /** The signed-in owner, or null. Safe to call from anywhere. */
