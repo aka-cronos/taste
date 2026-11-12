@@ -272,3 +272,83 @@ it('clears a failed delete error when cancelling or reopening the confirmation',
   expect(within(dialog).queryByRole('alert')).toBeNull()
   expect(permanentlyDeleteItem).toHaveBeenCalledTimes(1)
 })
+
+it('validates credit inline, blocks invalid submits and revalidates corrections', async () => {
+  await open()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+  const credit = screen.getByLabelText('Credit URL')
+  fireEvent.change(credit, { target: { value: 'javascript:alert(1)' } })
+  fireEvent.blur(credit)
+  expect(await screen.findByText('Use an http(s) credit URL.')).toBeTruthy()
+  expect(credit.getAttribute('aria-invalid')).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() => expect(saveItemEdits).not.toHaveBeenCalled())
+  fireEvent.change(credit, { target: { value: 'https://example.com/artist' } })
+  await waitFor(() =>
+    expect(screen.queryByText('Use an http(s) credit URL.')).toBeNull(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(saveItemEdits).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        creditUrl: 'https://example.com/artist',
+      }),
+    }),
+  )
+})
+it('resets field values and validation when editing is cancelled', async () => {
+  await open()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'Unsaved' },
+  })
+  const credit = screen.getByLabelText('Credit URL')
+  fireEvent.change(credit, { target: { value: 'invalid' } })
+  fireEvent.blur(credit)
+  expect(await screen.findByText('Use an http(s) credit URL.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel editing' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+  expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+    'Original',
+  )
+  expect((screen.getByLabelText('Credit URL') as HTMLInputElement).value).toBe(
+    '',
+  )
+  expect(screen.queryByText('Use an http(s) credit URL.')).toBeNull()
+  expect(saveItemEdits).not.toHaveBeenCalled()
+})
+it('uses form submission state to disable controls and prevent duplicate saves', async () => {
+  let finish: (() => void) | undefined
+  vi.mocked(saveItemEdits).mockImplementation(
+    () =>
+      new Promise<void>(resolve => {
+        finish = resolve
+      }),
+  )
+  await open()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+  const title = screen.getByLabelText('Title')
+  fireEvent.change(title, { target: { value: 'Updated' } })
+  const submit = screen.getByRole('button', { name: 'Save changes' })
+  fireEvent.click(submit)
+  await waitFor(() => expect(saveItemEdits).toHaveBeenCalledTimes(1))
+  expect(
+    (screen.getByRole('button', { name: 'Saving…' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Cancel editing',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true)
+  expect(
+    (screen.getByRole('button', { name: 'Delete item' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  fireEvent.submit(title.closest('form') as HTMLFormElement)
+  expect(saveItemEdits).toHaveBeenCalledTimes(1)
+  await act(async () => finish?.())
+  expect(await screen.findByRole('button', { name: 'Edit item' })).toBeTruthy()
+})
