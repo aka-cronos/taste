@@ -1,6 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { AddItem } from '@/components/gallery/add-item'
 import { GalleryFilters } from '@/components/gallery/gallery-filters'
 import { GalleryGrid } from '@/components/gallery/gallery-grid'
+import { useOwner } from '@/lib/auth/use-owner'
 import { normalizeGalleryFilters } from '@/lib/items/search'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
 
@@ -18,12 +20,15 @@ export const Route = createFileRoute('/')({
 })
 
 function GalleryPage() {
+  const owner = useOwner()
+  const router = useRouter()
   const { page, tags } = Route.useLoaderData()
   const filters = Route.useSearch()
   const navigate = Route.useNavigate()
   return (
     <main className='mx-auto max-w-6xl px-4 py-6'>
       <h1 className='sr-only'>Taste</h1>
+      {owner ? <AddItem onSaved={() => router.invalidate()} /> : null}
       <GalleryFilters
         filters={filters}
         onChange={search => navigate({ search })}
