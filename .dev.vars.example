@@ -22,3 +22,8 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 
 # Optional public contact page or mailto: address for takedown requests.
 CONTACT_URL=
+
+# Optional OAuth proxy for trusted Previews; keep blank for direct local sign-in.
+# Configure Preview values in wrangler.jsonc and Preview-only secrets in Cloudflare.
+OAUTH_PROXY_URL=
+AUTH_PREVIEW_HOST=

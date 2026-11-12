@@ -5,7 +5,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "preview_urls": true,
-  "vars": { "CONTACT_URL": "" },
+  "vars": { "CONTACT_URL": "", "OAUTH_PROXY_URL": "", "AUTH_PREVIEW_HOST": "" },
   "observability": {
     "enabled": true
   },
@@ -32,6 +32,12 @@
     }
   ],
   "previews": {
+    "vars": {
+      "CONTACT_URL": "",
+      "BETTER_AUTH_URL": "https://auth-taste.cronos-b0a.workers.dev",
+      "OAUTH_PROXY_URL": "https://auth-taste.cronos-b0a.workers.dev",
+      "AUTH_PREVIEW_HOST": "*-taste.cronos-b0a.workers.dev"
+    },
     "d1_databases": [
       {
         "binding": "DB",
