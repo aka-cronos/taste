@@ -1,0 +1,126 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { Owner } from '@/lib/auth/owner'
+import { listGallery, listGalleryTags } from '@/lib/items/server'
+import { Route } from '@/routes/index'
+
+vi.mock('@/lib/items/server', () => ({
+  listGallery: vi.fn(),
+  listGalleryTags: vi.fn(),
+}))
+window.scrollTo = () => undefined
+
+afterEach(cleanup)
+beforeEach(() => {
+  vi.mocked(listGallery).mockReset()
+  vi.mocked(listGallery).mockResolvedValue({ items: [], nextCursor: null })
+  vi.mocked(listGalleryTags).mockResolvedValue(['poster', 'warm'])
+})
+
+async function openGallery(url: string) {
+  const root = createRootRoute({
+    beforeLoad: async (): Promise<{ owner: Owner | null }> => ({ owner: null }),
+  })
+  const routeTree = root.addChildren([
+    createRoute({ ...Route.options, getParentRoute: () => root, path: '/' }),
+  ])
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: [url] }),
+    routeTree,
+  })
+  await act(() => router.load())
+  const view = render(<RouterProvider router={router as never} />)
+  return { router, view }
+}
+
+it('restores a shared filtered URL, including after a reload', async () => {
+  const url = '/?q=warm&tags=%5B%22poster%22%2C%22warm%22%5D&type=image'
+  const { view } = await openGallery(url)
+  expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('warm')
+  expect(screen.getByDisplayValue('Image')).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'poster' }).getAttribute('aria-pressed'),
+  ).toBe('true')
+  expect(
+    screen.getByRole('button', { name: 'warm' }).getAttribute('aria-pressed'),
+  ).toBe('true')
+  expect(listGallery).toHaveBeenLastCalledWith({
+    data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
+  })
+  expect(screen.getByText('No items match these filters.')).toBeTruthy()
+  view.unmount()
+  await openGallery(url)
+  expect(listGallery).toHaveBeenLastCalledWith({
+    data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
+  })
+})
+
+it('writes combined filters to the URL, supports back, and clears the view', async () => {
+  const { router } = await openGallery('/')
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'warm' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() => expect(router.state.location.search.q).toBe('warm'))
+  fireEvent.click(screen.getByRole('button', { name: 'poster' }))
+  await waitFor(() =>
+    expect(router.state.location.search.tags).toEqual(['poster']),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'warm' }))
+  await waitFor(() =>
+    expect(router.state.location.search.tags).toEqual(['poster', 'warm']),
+  )
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'image' } })
+  await waitFor(() => expect(router.state.location.search.type).toBe('image'))
+  await act(() => router.history.back())
+  await waitFor(() =>
+    expect(screen.getByDisplayValue('All types')).toBeTruthy(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+  await waitFor(() => expect(router.state.location.search).toEqual({}))
+  expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
+})
+
+it('keeps filters when paging and replaces accumulated items when filters change', async () => {
+  const item = (id: string) => ({
+    credit: null,
+    description: id,
+    id,
+    image: null,
+    note: id,
+    publishedAt: 1,
+    sourceUrl: null,
+    tags: ['warm'],
+    title: id,
+    type: 'note' as const,
+  })
+  vi.mocked(listGallery)
+    .mockResolvedValueOnce({ items: [item('first')], nextCursor: '1.first' })
+    .mockResolvedValueOnce({ items: [item('second')], nextCursor: null })
+    .mockResolvedValueOnce({ items: [item('filtered')], nextCursor: null })
+  await openGallery('/?q=warm&type=note')
+  fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+  expect(await screen.findByRole('link', { name: 'second' })).toBeTruthy()
+  expect(listGallery).toHaveBeenLastCalledWith({
+    data: { cursor: '1.first', q: 'warm', type: 'note' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'poster' }))
+  expect(await screen.findByRole('link', { name: 'filtered' })).toBeTruthy()
+  expect(screen.queryByRole('link', { name: 'first' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'second' })).toBeNull()
+  expect(listGallery).toHaveBeenLastCalledWith({
+    data: { q: 'warm', tags: ['poster'], type: 'note' },
+  })
+})
