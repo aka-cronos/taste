@@ -8,6 +8,7 @@
     "cf-typegen": "wrangler types --include-runtime false",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:seed": "node scripts/seed.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "dev": "vite dev",
     "format": "biome check --write .",
