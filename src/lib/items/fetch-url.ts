@@ -5,7 +5,7 @@ const IPV4 = /^\d+\.\d+\.\d+\.\d+$/u
 const GLOBAL_IPV6 = /^[23]/u
 const IP_BRACKETS = /^\[|\]$/gu
 const TRAILING_DOT = /\.$/u
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 export const MAX_PAGE_BYTES = 1024 * 1024
 
 export function isPublicAddress(address: string): boolean {

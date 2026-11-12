@@ -1,27 +1,17 @@
 import { publicUrl } from '@/lib/items/fetch-url'
+import { type ItemInput, itemInputSchema } from '@/lib/items/input'
 import {
   fetchLinkMetadata,
   type StoredImage,
   validateImage,
 } from '@/lib/items/link-metadata'
 import {
-  type ItemOrigin,
   type ItemStatus,
   type ItemType,
   normalizeTagName,
 } from '@/lib/items/model'
 
-export interface IngestInput {
-  description?: string
-  image?: StoredImage
-  note?: string
-  origin: ItemOrigin
-  sourceUrl?: string
-  status: ItemStatus
-  tags?: string[]
-  title?: string
-  type: ItemType
-}
+export type IngestInput = Omit<ItemInput, 'image'> & { image?: StoredImage }
 
 interface SavedItem {
   description: string
@@ -39,44 +29,16 @@ export interface IngestResult {
 }
 
 function validateInput(input: IngestInput) {
-  if (
-    !(
-      ['image', 'link', 'note'].includes(input.type) &&
-      ['manual', 'agent'].includes(input.origin) &&
-      ['published', 'inbox'].includes(input.status)
-    )
-  ) {
-    throw new Error('Invalid item type, origin or status.')
-  }
-  for (const value of [
-    input.title,
-    input.description,
-    input.note,
-    input.sourceUrl,
-  ]) {
-    if (
-      value !== undefined &&
-      (typeof value !== 'string' || value.length > 10_000)
-    ) {
-      throw new Error('Item text must be at most 10,000 characters.')
-    }
-  }
-  if (
-    input.tags !== undefined &&
-    (!Array.isArray(input.tags) ||
-      input.tags.length > 50 ||
-      input.tags.some(tag => typeof tag !== 'string' || tag.length > 100))
-  ) {
-    throw new Error('Use up to 50 tags, each at most 100 characters.')
-  }
-  if (input.type === 'note' && !input.note?.trim()) {
-    throw new Error('Write a note first.')
-  }
-  if (input.type === 'image' && !input.image) {
-    throw new Error('Choose an image first.')
-  }
-  if (input.type === 'link' && !input.sourceUrl) {
-    throw new Error('Paste a URL first.')
+  const result = itemInputSchema.safeParse({
+    ...input,
+    image: input.image
+      ? new File([new Uint8Array(input.image.bytes)], 'image', {
+          type: input.image.contentType,
+        })
+      : undefined,
+  })
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message)
   }
   if (input.image) {
     validateImage(input.image)

@@ -1,10 +1,10 @@
 import { decodeHTML, decodeHTMLAttribute } from 'entities'
 import {
   fetchPublicUrl,
-  MAX_IMAGE_BYTES,
   MAX_PAGE_BYTES,
   publicUrl,
 } from '@/lib/items/fetch-url'
+import { IMAGE_ERROR, imageSchema, MAX_IMAGE_BYTES } from '@/lib/items/input'
 
 const GIF_SIGNATURE = /^GIF8[79]a$/u
 
@@ -26,8 +26,11 @@ export function validateImage(image: StoredImage) {
     (contentType === 'image/webp' &&
       new TextDecoder().decode(bytes.subarray(0, 4)) === 'RIFF' &&
       new TextDecoder().decode(bytes.subarray(8, 12)) === 'WEBP')
-  if (!matches || bytes.length > MAX_IMAGE_BYTES) {
-    throw new Error('Choose a PNG, JPEG, GIF or WebP image up to 10 MB.')
+  const validFile = imageSchema.safeParse(
+    new File([new Uint8Array(bytes)], 'image', { type: contentType }),
+  ).success
+  if (!(matches && validFile)) {
+    throw new Error(IMAGE_ERROR)
   }
 }
 
