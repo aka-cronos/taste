@@ -3,13 +3,21 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useLocation,
+  useRouteContext,
+  useRouter,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { SiteHeader } from '@/components/site-header'
+import { authClient } from '@/lib/auth/client'
+import { NOT_AUTHORIZED, NOT_AUTHORIZED_MESSAGE } from '@/lib/auth/owner'
+import { getOwner } from '@/lib/auth/session'
 import { themeInitScript } from '@/lib/theme'
 import appCss from '@/styles.css?url'
 
 export const Route = createRootRoute({
-  component: Outlet,
+  beforeLoad: async () => ({ owner: await getOwner() }),
+  component: RootLayout,
   head: () => ({
     links: [{ href: appCss, rel: 'stylesheet' }],
     meta: [
@@ -21,6 +29,48 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootDocument,
 })
+
+function authErrorMessage(error: unknown) {
+  if (!error) {
+    return null
+  }
+  return error === NOT_AUTHORIZED
+    ? NOT_AUTHORIZED_MESSAGE
+    : 'Sign-in failed. Please try again.'
+}
+
+function RootLayout() {
+  const router = useRouter()
+  const owner = useRouteContext({
+    from: '__root__',
+    select: context => context.owner,
+  })
+  const authError = useLocation({
+    select: location =>
+      authErrorMessage((location.search as { error?: unknown }).error),
+  })
+
+  return (
+    <>
+      <SiteHeader
+        authError={owner ? null : authError}
+        onSignIn={() =>
+          authClient.signIn.social({
+            callbackURL: '/',
+            errorCallbackURL: '/',
+            provider: 'google',
+          })
+        }
+        onSignOut={async () => {
+          await authClient.signOut()
+          await router.invalidate()
+        }}
+        owner={owner}
+      />
+      <Outlet />
+    </>
+  )
+}
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
