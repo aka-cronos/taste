@@ -1,10 +1,13 @@
 import type { BetterAuthOptions } from 'better-auth'
+import { oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import {
   isOwnerEmail,
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
+
+const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
 
 export type AuthEnv = Pick<
   Env,
@@ -14,9 +17,44 @@ export type AuthEnv = Pick<
   | 'GOOGLE_CLIENT_ID'
   | 'GOOGLE_CLIENT_SECRET'
   | 'OWNER_EMAIL'
->
+> &
+  Partial<
+    Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string>
+  >
 
 export function createAuthOptions(env: AuthEnv) {
+  const proxyUrl = env.OAUTH_PROXY_URL?.trim()
+  const previewHost = env.AUTH_PREVIEW_HOST?.trim()
+  if (Boolean(proxyUrl) !== Boolean(previewHost)) {
+    throw new Error('Configure OAUTH_PROXY_URL and AUTH_PREVIEW_HOST together.')
+  }
+  if (proxyUrl && previewHost) {
+    const url = new URL(proxyUrl)
+    if (
+      url.protocol !== 'https:' ||
+      url.origin !== proxyUrl ||
+      !PREVIEW_HOST.test(previewHost)
+    ) {
+      throw new Error(
+        'Use an HTTPS proxy origin and a workers.dev Preview host pattern.',
+      )
+    }
+    return {
+      ...baseAuthOptions(env),
+      baseURL: {
+        allowedHosts: [url.host, previewHost],
+        protocol: 'https' as const,
+      },
+      plugins: [
+        oAuthProxy({ productionURL: proxyUrl, secret: env.BETTER_AUTH_SECRET }),
+        tanstackStartCookies(),
+      ],
+    } satisfies BetterAuthOptions
+  }
+  return baseAuthOptions(env)
+}
+
+function baseAuthOptions(env: AuthEnv) {
   return {
     appName: 'Taste',
     basePath: '/api/auth',
