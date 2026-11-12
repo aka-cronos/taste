@@ -9,14 +9,22 @@ Requires Node 22+ and pnpm.
 pnpm install
 cp .dev.vars.example .dev.vars   # then fill in the values
 pnpm db:migrate:local            # apply D1 migrations to the local database
+pnpm db:seed                     # optional: sample items and images
 pnpm dev                         # http://localhost:3000
 ```
+
+`pnpm db:seed` fills the local database and bucket with sample items of every
+type, including two inbox items that must never show on the public page. It is
+safe to rerun and never touches remote resources.
 
 The maintainer renders `.dev.vars` from `.dev.vars.tpl` with 1Password
 (`envsync`); everyone else copies `.dev.vars.example` as shown.
 
 `pnpm dev` runs the app inside the Workers runtime with local D1 (`DB`) and R2
 (`BUCKET`) bindings. `GET /api/health` reports whether both are reachable.
+Stored images are served from R2 at `/media/<key>`: images of published items
+are public and cached for a year, images of inbox items are visible to the
+owner only.
 
 Checks: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
 After changing `wrangler.jsonc`, run `pnpm cf-typegen` to refresh the binding types.
