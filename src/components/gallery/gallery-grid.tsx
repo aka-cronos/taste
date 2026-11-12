@@ -4,12 +4,17 @@ import { Button } from '@/components/ui/button'
 import type { GalleryPage } from '@/lib/items/model'
 
 interface GalleryGridProps {
+  filtered?: boolean
   initialPage: GalleryPage
   loadPage: (cursor: string) => Promise<GalleryPage>
 }
 
 /** Masonry grid of gallery items, with a button to load the next page. */
-export function GalleryGrid({ initialPage, loadPage }: GalleryGridProps) {
+export function GalleryGrid({
+  filtered = false,
+  initialPage,
+  loadPage,
+}: GalleryGridProps) {
   const [items, setItems] = useState(initialPage.items)
   const [cursor, setCursor] = useState(initialPage.nextCursor)
   const [loading, setLoading] = useState(false)
@@ -18,7 +23,7 @@ export function GalleryGrid({ initialPage, loadPage }: GalleryGridProps) {
   if (items.length === 0) {
     return (
       <p className='text-muted-foreground py-24 text-center'>
-        Nothing here yet.
+        {filtered ? 'No items match these filters.' : 'Nothing here yet.'}
       </p>
     )
   }

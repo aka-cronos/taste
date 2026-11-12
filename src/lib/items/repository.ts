@@ -7,6 +7,10 @@ import {
   mediaUrl,
   safeHttpUrl,
 } from '@/lib/items/model'
+import {
+  type GalleryFilters,
+  gallerySearchConditions,
+} from '@/lib/items/search'
 
 export const DEFAULT_PAGE_SIZE = 48
 const MAX_PAGE_SIZE = 100
@@ -88,23 +92,29 @@ function decodeCursor(cursor: string) {
 /** Published items, newest first, one page at a time. */
 export async function listPublishedItems(
   db: D1Database,
-  { cursor, limit = DEFAULT_PAGE_SIZE }: { cursor?: string; limit?: number },
+  {
+    cursor,
+    limit = DEFAULT_PAGE_SIZE,
+    ...filters
+  }: GalleryFilters & { cursor?: string; limit?: number },
 ): Promise<GalleryPage> {
-  const size = Math.min(Math.max(1, Math.trunc(limit)), MAX_PAGE_SIZE)
+  const size = Number.isFinite(limit)
+    ? Math.min(Math.max(1, Math.trunc(limit)), MAX_PAGE_SIZE)
+    : DEFAULT_PAGE_SIZE
   const after = cursor ? decodeCursor(cursor) : null
-  const statement = after
-    ? db
-        .prepare(
-          `${PUBLISHED_ITEMS}
-            AND (i.published_at < ?1 OR (i.published_at = ?1 AND i.id < ?2))
-          ORDER BY i.published_at DESC, i.id DESC LIMIT ?3`,
-        )
-        .bind(after.publishedAt, after.id, size + 1)
-    : db
-        .prepare(
-          `${PUBLISHED_ITEMS} ORDER BY i.published_at DESC, i.id DESC LIMIT ?1`,
-        )
-        .bind(size + 1)
+  const { clauses, values } = gallerySearchConditions(filters)
+  const params: (string | number)[] = [...values]
+  if (after) {
+    clauses.push('(i.published_at < ? OR (i.published_at = ? AND i.id < ?))')
+    params.push(after.publishedAt, after.publishedAt, after.id)
+  }
+  params.push(size + 1)
+  const statement = db
+    .prepare(
+      `${PUBLISHED_ITEMS}${clauses.map(clause => ` AND ${clause}`).join('')}
+     ORDER BY i.published_at DESC, i.id DESC LIMIT ?`,
+    )
+    .bind(...params)
   const { results } = await statement.all<ItemRow>()
   const items = results.slice(0, size).map(toGalleryItem)
   const last = items.at(-1)
@@ -135,4 +145,18 @@ export async function getMediaStatus(
     .prepare('SELECT status FROM items WHERE image_key = ?1')
     .bind(key)
     .first<ItemStatus>('status')
+}
+
+/** Tags attached to public items only; inbox-only tags stay private. */
+export async function listPublishedTags(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare(`
+    SELECT DISTINCT t.normalized_name AS name
+    FROM tags t JOIN item_tags it ON it.tag_id = t.id
+    JOIN items i ON i.id = it.item_id
+    WHERE i.status = 'published'
+    ORDER BY t.normalized_name
+  `)
+    .all<{ name: string }>()
+  return results.map(tag => tag.name)
 }

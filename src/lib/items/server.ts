@@ -1,10 +1,19 @@
 import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
-import { getPublishedItem, listPublishedItems } from '@/lib/items/repository'
+import {
+  getPublishedItem,
+  listPublishedItems,
+  listPublishedTags,
+} from '@/lib/items/repository'
+import {
+  type GalleryFilters,
+  normalizeGalleryFilters,
+} from '@/lib/items/search'
 
 /** A page of the public gallery: published items only. */
 export const listGallery = createServerFn({ method: 'GET' })
-  .validator((input: { cursor?: string } | undefined) => ({
+  .validator((input: (GalleryFilters & { cursor?: string }) | undefined) => ({
+    ...normalizeGalleryFilters(input),
     cursor: typeof input?.cursor === 'string' ? input.cursor : undefined,
   }))
   .handler(({ data }) => listPublishedItems(env.DB, data))
@@ -20,3 +29,7 @@ export const getGalleryItem = createServerFn({ method: 'GET' })
     return { id }
   })
   .handler(({ data }) => getPublishedItem(env.DB, data.id))
+
+export const listGalleryTags = createServerFn({ method: 'GET' }).handler(() =>
+  listPublishedTags(env.DB),
+)
