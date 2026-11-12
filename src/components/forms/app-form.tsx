@@ -193,13 +193,15 @@ function FileField({
           onDragOver={e => e.preventDefault()}
           onDrop={e => {
             e.preventDefault()
+            const [file] = e.dataTransfer.files
             if (
+              file &&
               !(
                 input.current?.disabled ||
                 input.current?.closest('fieldset')?.disabled
               )
             ) {
-              choose(e.dataTransfer.files[0])
+              choose(file)
             }
           }}
           type='button'

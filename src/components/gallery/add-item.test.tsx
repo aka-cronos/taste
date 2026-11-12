@@ -277,3 +277,25 @@ it('keeps errors hidden on an unblurred field when another field validates', () 
   })
   expect(screen.queryByRole('alert')).toBeNull()
 })
+
+it('keeps the selected image when a drop contains no files', async () => {
+  render(<AddItem onSaved={onSaved} />)
+  const file = new File(['image'], 'reference.png', { type: 'image/png' })
+  fireEvent.paste(document.body, { clipboardData: { files: [file] } })
+  fireEvent.drop(
+    screen.getByRole('button', { name: 'Drop an image here or choose a file' }),
+    {
+      dataTransfer: {
+        files: [],
+        getData: () => 'https://example.com/image.png',
+      },
+    },
+  )
+  expect(screen.getByText('reference.png')).toBeTruthy()
+  expect(screen.queryByText('Choose an image first.')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+  expect(vi.mocked(addManualItem).mock.calls[0]?.[0]?.data?.get('image')).toBe(
+    file,
+  )
+})
