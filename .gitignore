@@ -9,6 +9,7 @@ coverage/
 # Local secrets for `pnpm dev` (see .dev.vars.example)
 .dev.vars*
 !.dev.vars.example
+!.dev.vars.tpl
 .env*
 !.env.example
 

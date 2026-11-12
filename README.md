@@ -12,6 +12,9 @@ pnpm db:migrate:local            # apply D1 migrations to the local database
 pnpm dev                         # http://localhost:3000
 ```
 
+The maintainer renders `.dev.vars` from `.dev.vars.tpl` with 1Password
+(`envsync`); everyone else copies `.dev.vars.example` as shown.
+
 `pnpm dev` runs the app inside the Workers runtime with local D1 (`DB`) and R2
 (`BUCKET`) bindings. `GET /api/health` reports whether both are reachable.
 
