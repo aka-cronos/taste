@@ -58,3 +58,49 @@ as required. The `audit` job is informational and is not a required status check
 
 If the ruleset already exists, inspect and update it rather than creating a
 duplicate. Confirm it is active with no bypass actors before merging.
+
+## Google sign-in on every Preview
+
+Previews use Better Auth's OAuth Proxy with a fixed trusted Preview named `auth`:
+`https://auth-taste.cronos-b0a.workers.dev`. Google returns to that Preview,
+which exchanges the authorization code and sends an encrypted profile back to
+the originating branch. The branch checks `OWNER_EMAIL` and creates its session
+in the Preview database. Production uses its own direct Google flow and secrets;
+the proxy plugin is disabled there.
+
+The committed `previews.vars` config supplies `OAUTH_PROXY_URL`,
+`AUTH_PREVIEW_HOST` and a Preview-safe `BETTER_AUTH_URL`. Dynamic base URL
+resolution accepts only this app's Preview host pattern, including per-commit
+URLs. Other installations must change both the callback origin and host pattern.
+
+In the **testing** Google OAuth client, keep the localhost redirect and register
+this one additional authorized redirect URI:
+
+```text
+https://auth-taste.cronos-b0a.workers.dev/api/auth/callback/google
+```
+
+In Cloudflare's **Previews Base configuration**, configure `OWNER_EMAIL`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (the testing client), and a random
+`BETTER_AUTH_SECRET` used only by Previews. All participating Previews must share
+that Preview secret: it encrypts their proxy payloads as well as their sessions.
+Never reuse the production secret. Only trusted branch code should receive these
+credentials; a holder can assert identities to other participating Previews.
+
+Base secrets are copied only to newly created Previews. For an existing Preview,
+set its secrets too, or deploy with a protected JSON secrets file. Do not commit
+that file or print its contents. Preview secrets can be managed with
+`pnpm exec wrangler preview base-config secret` and
+`pnpm exec wrangler preview secret --name <branch>`.
+
+After building, deploy the fixed callback once with
+`pnpm exec wrangler preview --name auth`. Ordinary PR builds keep using
+`pnpm exec wrangler preview`. Keep the `auth` Preview available; do not delete
+it during branch cleanup. Redeploy it when upgrading Better Auth: all
+participating Previews must run compatible proxy versions. The Google consent
+screen must allow the owner's account when the testing client is in Testing mode.
+
+The fixed callback and each branch use `taste-preview` and
+`taste-images-preview`, never production resources. A successful Preview build
+alone does not verify Google sign-in; complete one real owner login after
+registering the callback.
