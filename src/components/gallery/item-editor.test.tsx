@@ -12,6 +12,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
@@ -189,4 +190,85 @@ it('suggests existing tags and allows creating a new tag', async () => {
       data: expect.objectContaining({ tags: ['warm', 'poster', 'new tag'] }),
     }),
   )
+})
+
+it.each(['published', 'inbox'] as const)(
+  'preserves unsaved edits by disabling visibility changes while editing a %s item',
+  async status => {
+    editor.status = status
+    await open()
+    const label = status === 'published' ? 'Move to inbox' : 'Publish item'
+    expect(
+      (screen.getByRole('button', { name: label }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Unsaved title' },
+    })
+    fireEvent.change(screen.getByLabelText('Note'), {
+      target: { value: 'Unsaved note' },
+    })
+    const visibility = screen.getByRole('button', {
+      name: label,
+    }) as HTMLButtonElement
+    expect(visibility.disabled).toBe(true)
+    fireEvent.click(visibility)
+    expect(changeItemVisibility).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('Unsaved title')).toBeTruthy()
+    expect(screen.getByDisplayValue('Unsaved note')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(saveItemEdits).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          note: 'Unsaved note',
+          title: 'Unsaved title',
+        }),
+      }),
+    )
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: label }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel editing' }))
+    expect(
+      (screen.getByRole('button', { name: label }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+  },
+)
+it('keeps edit errors out of the delete dialog and preserves them after cancellation', async () => {
+  vi.mocked(saveItemEdits).mockRejectedValueOnce(new Error('Save failed'))
+  await open()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete item' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).queryByRole('alert')).toBeNull()
+  expect(permanentlyDeleteItem).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  expect(screen.getByRole('alert').textContent).toContain('Could not update')
+})
+it('clears a failed delete error when cancelling or reopening the confirmation', async () => {
+  vi.mocked(permanentlyDeleteItem).mockRejectedValueOnce(
+    new Error('Delete failed'),
+  )
+  await open()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete item' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Delete permanently' }),
+  )
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  expect(screen.queryByRole('alert')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete item' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).queryByRole('alert')).toBeNull()
+  expect(permanentlyDeleteItem).toHaveBeenCalledTimes(1)
 })
