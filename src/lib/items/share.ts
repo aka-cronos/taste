@@ -21,7 +21,11 @@ type Meta =
 export function itemShareMeta(item: GalleryItem, origin: string): Meta[] {
   const title = itemLabel(item)
   const description =
-    item.type === 'note' ? item.note || item.description : item.description
+    (item.type === 'note' ? item.note || item.description : item.description) ||
+    item.sourceUrl ||
+    item.credit?.label ||
+    item.tags.join(', ') ||
+    `A saved ${item.type} from Taste.`
   const image = item.type === 'note' ? null : item.image
   const meta: Meta[] = [
     { content: title, property: 'og:title' },
@@ -29,12 +33,10 @@ export function itemShareMeta(item: GalleryItem, origin: string): Meta[] {
     { content: itemUrl(item.id, origin), property: 'og:url' },
     { content: 'Taste', property: 'og:site_name' },
   ]
-  if (description) {
-    meta.push(
-      { content: description, name: 'description' },
-      { content: description, property: 'og:description' },
-    )
-  }
+  meta.push(
+    { content: description, name: 'description' },
+    { content: description, property: 'og:description' },
+  )
   if (image) {
     meta.push({
       content: new URL(image.url, origin).href,

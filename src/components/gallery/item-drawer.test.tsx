@@ -670,6 +670,23 @@ describe('item page head', () => {
     })
   })
 
+  it('serves a description for a published link with no description', async () => {
+    items.a = {
+      ...(items.a as GalleryItem),
+      description: '',
+      note: null,
+      sourceUrl: 'https://blog.example/grids',
+      type: 'link',
+    }
+    const { router } = await openApp({ url: '/items/a' })
+    expect(headTags(router)).toMatchObject({
+      description: 'https://blog.example/grids',
+      'og:description': 'https://blog.example/grids',
+      'og:title': 'Alpha',
+      'og:url': 'https://taste.example/items/a',
+    })
+  })
+
   it('leaves the image out for notes', async () => {
     const { router } = await openApp({ url: '/items/a' })
     const tags = headTags(router)

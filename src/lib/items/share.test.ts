@@ -85,8 +85,63 @@ describe('itemShareMeta', () => {
     })
     expect(meta['og:title']).toBe('blog.example')
     expect(meta['og:image']).toBeUndefined()
-    expect(meta['og:description']).toBeUndefined()
+    expect(meta['og:description']).toBe('https://blog.example/grids')
     expect(meta['twitter:card']).toBe('summary')
+  })
+
+  it.each([
+    {
+      credit: { label: 'Ana', url: null },
+      expected: 'Ana',
+      sourceUrl: null,
+      tags: ['poster'],
+    },
+    {
+      credit: null,
+      expected: 'poster, warm',
+      sourceUrl: null,
+      tags: ['poster', 'warm'],
+    },
+    {
+      credit: { label: 'Ana', url: null },
+      expected: 'https://ana.example/poster',
+      sourceUrl: 'https://ana.example/poster',
+      tags: ['poster'],
+    },
+  ])(
+    'uses available context instead of repeating the title ($expected)',
+    fields => {
+      const { expected, ...context } = fields
+      const meta = tags({
+        ...base,
+        ...context,
+        id: 'img',
+        title: 'Poster',
+        type: 'image',
+      })
+      expect(meta['og:description']).toBe(expected)
+      expect(meta.description).toBe(expected)
+      expect(meta['og:title']).toBe('Poster')
+    },
+  )
+
+  it.each(['image', 'link', 'note'] as const)(
+    'always describes a minimal %s item',
+    type => {
+      const meta = tags({ ...base, id: 'minimal', type })
+      expect(meta['og:description']).toBe(`A saved ${type} from Taste.`)
+      expect(meta.description).toBe(meta['og:description'])
+    },
+  )
+
+  it('falls back to a note description when its text is missing', () => {
+    const meta = tags({
+      ...base,
+      description: 'On restraint',
+      id: 'nte',
+      type: 'note',
+    })
+    expect(meta['og:description']).toBe('On restraint')
   })
 
   it('describes a note by its text and never gives it an image', () => {
