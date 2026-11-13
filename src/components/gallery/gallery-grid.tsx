@@ -1,3 +1,4 @@
+import { cn } from 'cn'
 import { useState } from 'react'
 import { ItemCard } from '@/components/gallery/item-card'
 import { Button } from '@/components/ui/button'
@@ -47,7 +48,15 @@ export function GalleryGrid({
 
   return (
     <>
-      <div className='columns-2 gap-3 sm:columns-3 sm:gap-4 lg:columns-4 xl:columns-5'>
+      <div
+        className={cn(
+          'items-start gap-3 sm:gap-4',
+          items.length <= 2 ? 'grid grid-cols-2' : 'columns-2',
+          items.length <= 3 ? 'sm:grid sm:grid-cols-3' : 'sm:columns-3',
+          items.length <= 4 ? 'lg:grid lg:grid-cols-4' : 'lg:columns-4',
+          items.length <= 5 ? 'xl:grid xl:grid-cols-5' : 'xl:columns-5',
+        )}
+      >
         {items.map(item => (
           <ItemCard item={item} key={item.id} />
         ))}

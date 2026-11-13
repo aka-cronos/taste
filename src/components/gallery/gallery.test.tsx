@@ -147,3 +147,29 @@ describe('GalleryGrid', () => {
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
   })
 })
+
+it('keeps cards and their credits together when pagination changes the layout', async () => {
+  const items = Array.from({ length: 6 }, (_, i) => ({
+    ...image,
+    description: `Image ${i}`,
+    id: `image-${i}`,
+  }))
+  const loadPage = vi
+    .fn()
+    .mockResolvedValue({ items: items.slice(2), nextCursor: null })
+  await renderWithRouter(
+    <GalleryGrid
+      initialPage={{ items: items.slice(0, 2), nextCursor: 'next' }}
+      loadPage={loadPage}
+    />,
+  )
+  const first = screen.getByRole('link', { name: 'Image 0' })
+  fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+  await screen.findByRole('link', { name: 'Image 5' })
+  expect(screen.getByRole('link', { name: 'Image 0' })).toBe(first)
+  expect(screen.getAllByRole('article')).toHaveLength(6)
+  for (const article of screen.getAllByRole('article')) {
+    expect(within(article).getByText('Ana')).toBeTruthy()
+    expect(within(article).getByRole('link')).toBeTruthy()
+  }
+})

@@ -352,3 +352,34 @@ it('uses form submission state to disable controls and prevent duplicate saves',
   await act(async () => finish?.())
   expect(await screen.findByRole('button', { name: 'Edit item' })).toBeTruthy()
 })
+
+it.each(['poster', 'random'])(
+  'selects %s with Enter without saving edits',
+  async tag => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit item' }))
+    const input = screen.getByRole('combobox', { name: 'Tags' })
+    act(() => input.focus())
+    fireEvent.input(input, {
+      data: tag,
+      inputType: 'insertText',
+      target: { value: tag },
+    })
+    const option = await screen.findByRole('option', {
+      name: tag === 'poster' ? tag : `Create “${tag}”`,
+    })
+    await waitFor(() =>
+      expect(option.hasAttribute('data-highlighted')).toBe(true),
+    )
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(false)
+    expect(screen.getByLabelText(`Remove ${tag}`)).toBeTruthy()
+    expect(saveItemEdits).not.toHaveBeenCalled()
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(saveItemEdits).toHaveBeenCalledWith({
+        data: expect.objectContaining({ tags: ['warm', tag] }),
+      }),
+    )
+  },
+)
