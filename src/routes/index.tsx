@@ -3,7 +3,7 @@ import { AddItem } from '@/components/gallery/add-item'
 import { GalleryFilters } from '@/components/gallery/gallery-filters'
 import { GalleryGrid } from '@/components/gallery/gallery-grid'
 import { useOwner } from '@/lib/auth/use-owner'
-import { normalizeGalleryFilters } from '@/lib/items/search'
+import { galleryFiltersSchema } from '@/lib/items/search'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
 
 export const Route = createFileRoute('/')({
@@ -16,7 +16,12 @@ export const Route = createFileRoute('/')({
     return { page, tags }
   },
   loaderDeps: ({ search }) => search,
-  validateSearch: normalizeGalleryFilters,
+  search: {
+    middlewares: [
+      ({ search, next }) => galleryFiltersSchema.parse(next(search)),
+    ],
+  },
+  validateSearch: galleryFiltersSchema,
 })
 
 function GalleryPage() {

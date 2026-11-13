@@ -5,15 +5,12 @@ import {
   listPublishedItems,
   listPublishedTags,
 } from '@/lib/items/repository'
-import {
-  type GalleryFilters,
-  normalizeGalleryFilters,
-} from '@/lib/items/search'
+import { type GalleryFilters, galleryFiltersSchema } from '@/lib/items/search'
 
 /** A page of the public gallery: published items only. */
 export const listGallery = createServerFn({ method: 'GET' })
   .validator((input: (GalleryFilters & { cursor?: string }) | undefined) => ({
-    ...normalizeGalleryFilters(input),
+    ...galleryFiltersSchema.parse(input),
     cursor: typeof input?.cursor === 'string' ? input.cursor : undefined,
   }))
   .handler(({ data }) => listPublishedItems(env.DB, data))

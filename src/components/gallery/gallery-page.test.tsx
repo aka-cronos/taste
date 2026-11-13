@@ -141,3 +141,16 @@ it('shows manual add only to the owner', async () => {
   })
   expect(screen.getByRole('button', { name: 'Add item' })).toBeTruthy()
 })
+
+it('renders the gallery for malformed search params and omits empty URL filters', async () => {
+  const { router } = await openGallery(
+    '/?q=%5B42%5D&tags=%5B%22%22%2C%22%20%20%22%2Cnull%5D&type=video&unknown=ignored',
+  )
+  expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
+  expect(router.state.location.search).toEqual({})
+  expect(listGallery).toHaveBeenLastCalledWith({ data: {} })
+  expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '   ' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+})
