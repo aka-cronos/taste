@@ -2,6 +2,8 @@ import {
   creditFor,
   type GalleryItem,
   type GalleryPage,
+  type InboxItem,
+  type ItemOrigin,
   type ItemStatus,
   type ItemType,
   mediaUrl,
@@ -24,6 +26,7 @@ interface ItemRow {
   image_key: string | null
   image_width: number | null
   note: string | null
+  origin: ItemOrigin
   published_at: number
   source_url: string | null
   /** JSON array of tag names. */
@@ -36,7 +39,7 @@ const ITEM_SELECT = `
   SELECT
     i.id, i.type, i.title, i.description, i.note, i.source_url,
     i.credit_author, i.credit_url, i.image_key, i.image_width,
-    i.image_height, coalesce(i.published_at, i.created_at) AS published_at,
+    i.image_height, i.origin, coalesce(i.published_at, i.created_at) AS published_at,
     (
       SELECT json_group_array(t.name)
       FROM item_tags it JOIN tags t ON t.id = it.tag_id
@@ -170,4 +173,34 @@ export async function getOwnerGalleryItem(db: D1Database, id: string) {
     .bind(id)
     .first<ItemRow>()
   return row ? toGalleryItem(row) : null
+}
+
+/** The most inbox items the owner reviews at once. */
+export const INBOX_PAGE_SIZE = 100
+
+/** Inbox items, newest first. Owner-only callers. */
+export async function listInboxItems(
+  db: D1Database,
+  limit = INBOX_PAGE_SIZE,
+): Promise<InboxItem[]> {
+  const { results } = await db
+    .prepare(
+      `${ITEM_SELECT} AND i.status = 'inbox'
+     ORDER BY i.created_at DESC, i.id DESC LIMIT ?`,
+    )
+    .bind(limit)
+    .all<ItemRow>()
+  return results.map(row => ({
+    ...toGalleryItem(row),
+    origin: row.origin,
+  }))
+}
+
+/** How many items wait in the inbox. Owner-only callers. */
+export async function countInboxItems(db: D1Database): Promise<number> {
+  return (
+    (await db
+      .prepare("SELECT count(*) AS count FROM items WHERE status = 'inbox'")
+      .first<number>('count')) ?? 0
+  )
 }

@@ -32,13 +32,19 @@ const textFields = [
 
 export function ItemEditor({
   initial,
+  onEditingEnd,
+  startEditing = false,
   tags,
 }: {
   initial: ItemEditorData
+  /** Called when the owner saves or cancels edits. */
+  onEditingEnd?: () => unknown
+  /** Open with the edit form showing, for example from the inbox. */
+  startEditing?: boolean
   tags: string[]
 }) {
   const router = useRouter()
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(startEditing)
   const [actionBusy, setActionBusy] = useState(false)
   const pending = useRef<boolean>(false)
   const [message, setMessage] = useState('')
@@ -54,6 +60,7 @@ export function ItemEditor({
         await saveItemEdits({ data: value })
         setEditing(false)
         toast.success('Item updated.')
+        await onEditingEnd?.()
         await router.invalidate()
       } catch {
         setMessage('Could not update the item. Please try again.')
@@ -94,7 +101,11 @@ export function ItemEditor({
       {submitting => {
         const disabled = actionBusy || submitting
         return (
-          <section aria-label='Manage item' className='space-y-4 border-t pt-4'>
+          <section
+            aria-label='Manage item'
+            className='scroll-mt-4 space-y-4 border-t pt-4'
+            id='edit'
+          >
             <p className='text-muted-foreground text-sm'>
               {status === 'published'
                 ? 'Published · visible to everyone'
@@ -107,6 +118,9 @@ export function ItemEditor({
                   setEditing(!editing)
                   form.reset(defaultValues)
                   setMessage('')
+                  if (editing) {
+                    onEditingEnd?.()
+                  }
                 }}
                 type='button'
                 variant='outline'

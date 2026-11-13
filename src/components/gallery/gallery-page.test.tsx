@@ -26,6 +26,7 @@ vi.mock('@/lib/items/server', () => ({
   listGalleryTags: vi.fn(),
 }))
 vi.mock('@/lib/auth/session', () => ({ getOwner: vi.fn() }))
+vi.mock('@/lib/items/inbox-server', () => ({ getInboxCount: vi.fn() }))
 vi.mock('@/lib/site-config', () => ({ getContactUrl: vi.fn() }))
 window.scrollTo = () => undefined
 
@@ -40,8 +41,9 @@ async function openGallery(url: string, owner: Owner | null = null) {
   const root = createRootRoute({
     beforeLoad: async (): Promise<{
       contactUrl: string | null
+      inboxCount: number
       owner: Owner | null
-    }> => ({ contactUrl: null, owner }),
+    }> => ({ contactUrl: null, inboxCount: 0, owner }),
     component: RootRoute.options.component,
   })
   const routeTree = root.addChildren([

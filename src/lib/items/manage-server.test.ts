@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
+  discardInbox,
+  getInbox,
+  getInboxCount,
+  publishInbox,
+} from '@/lib/items/inbox-server'
+import {
   changeItemVisibility,
   getOwnerItem,
   permanentlyDeleteItem,
@@ -58,8 +64,14 @@ it.each([
   ['visibility', changeItemVisibility],
   ['delete', permanentlyDeleteItem],
   ['private detail', getOwnerItem],
+  ['inbox list', getInbox],
+  ['inbox count', getInboxCount],
+  ['inbox publish', publishInbox],
+  ['inbox discard', discardInbox],
 ])('rejects anonymous %s calls before touching storage', async (_, call) => {
-  await expect(call({ data: { id: 'item' } })).rejects.toThrow()
+  await expect(
+    call({ data: { id: 'item', ids: ['item'] } } as never),
+  ).rejects.toThrow()
   expect(db.prepare).not.toHaveBeenCalled()
   expect(bucket.delete).not.toHaveBeenCalled()
 })

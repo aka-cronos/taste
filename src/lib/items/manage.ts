@@ -109,3 +109,58 @@ export async function listOwnerTags(db: D1Database) {
     .all<{ name: string }>()
   return results.map(tag => tag.name)
 }
+
+// D1 caps a statement at 100 bound parameters, so a selection of ids is
+// bound as one JSON array and expanded with json_each.
+const IN_IDS = 'IN (SELECT value FROM json_each(?))'
+
+/**
+ * Publishes the given inbox items. Ids that are missing or already published
+ * are skipped. Returns how many items were published.
+ */
+export async function publishInboxItems(db: D1Database, ids: string[]) {
+  if (ids.length === 0) {
+    return 0
+  }
+  const now = Date.now()
+  const result = await db
+    .prepare(`UPDATE items SET status = 'published', updated_at = ?,
+    published_at = coalesce(published_at, ?)
+    WHERE status = 'inbox' AND id ${IN_IDS}`)
+    .bind(now, now, JSON.stringify(ids))
+    .run()
+  return result.meta.changes ?? 0
+}
+
+/**
+ * Permanently deletes the given inbox items, their tag links, FTS rows and
+ * stored images. Ids that are missing or published are skipped. Returns how
+ * many items were discarded.
+ */
+export async function discardInboxItems(
+  { db, bucket }: { db: D1Database; bucket: Pick<R2Bucket, 'delete'> },
+  ids: string[],
+) {
+  if (ids.length === 0) {
+    return 0
+  }
+  const { results } = await db
+    .prepare(`SELECT id, image_key AS imageKey FROM items
+    WHERE status = 'inbox' AND id ${IN_IDS}`)
+    .bind(JSON.stringify(ids))
+    .all<{ id: string; imageKey: string | null }>()
+  if (results.length === 0) {
+    return 0
+  }
+  const keys = results.flatMap(row => (row.imageKey ? [row.imageKey] : []))
+  // Keep the rows and their keys if R2 fails, so discarding can be retried.
+  if (keys.length > 0) {
+    await bucket.delete(keys)
+  }
+  const found = results.map(row => row.id)
+  await db
+    .prepare(`DELETE FROM items WHERE id ${IN_IDS}`)
+    .bind(JSON.stringify(found))
+    .run()
+  return found.length
+}
