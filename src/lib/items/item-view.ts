@@ -21,13 +21,14 @@ export interface ItemView {
 export async function loadItemView(
   id: string,
   signedIn: boolean,
+  signal?: AbortSignal,
 ): Promise<ItemView | null> {
   if (!signedIn) {
     // Visitors only ever get published items.
-    const item = await getGalleryItem({ data: { id } })
+    const item = await getGalleryItem({ data: { id }, signal })
     return item ? { editor: null, item, published: true, tags: [] } : null
   }
-  const { editor, item, tags } = await getOwnerItem({ data: { id } })
+  const { editor, item, tags } = await getOwnerItem({ data: { id }, signal })
   return item
     ? { editor, item, published: editor?.status === 'published', tags }
     : null

@@ -1,14 +1,18 @@
+import type { QueryClient } from '@tanstack/react-query'
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
 import { getDiscarded, getInbox } from '@/lib/items/inbox-server'
+import { bootstrapKey, createQueryClient } from '@/lib/query-client'
+import type { Route as RootRoute } from '@/routes/__root'
 import { Route } from '@/routes/inbox'
 import { Route as DiscardedRoute } from '@/routes/inbox_.discarded'
 
@@ -61,12 +65,18 @@ beforeEach(() => {
 })
 
 async function openInbox(signedIn: Owner | null, path = '/inbox') {
-  const root = createRootRoute({
-    beforeLoad: (): Promise<{
-      contactUrl: string | null
-      inboxCount: number
-      owner: Owner | null
-    }> => Promise.resolve({ contactUrl: null, inboxCount: 1, owner: signedIn }),
+  const queryClient = createQueryClient()
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    beforeLoad: (async () => {
+      const data = await ((): Promise<{
+        contactUrl: string | null
+        inboxCount: number
+        owner: Owner | null
+      }> =>
+        Promise.resolve({ contactUrl: null, inboxCount: 1, owner: signedIn }))()
+      queryClient.setQueryData(bootstrapKey, data)
+      return data
+    }) as typeof RootRoute.options.beforeLoad,
   })
   const routeTree = root.addChildren([
     createRoute({ getParentRoute: () => root, path: '/' }),
@@ -83,9 +93,11 @@ async function openInbox(signedIn: Owner | null, path = '/inbox') {
     }),
   ])
   const router = createRouter({
+    context: { queryClient },
     history: createMemoryHistory({ initialEntries: [path] }),
     routeTree,
   })
+  setupRouterSsrQueryIntegration({ queryClient, router })
   await act(() => router.load())
   render(<RouterProvider router={router as never} />)
 }

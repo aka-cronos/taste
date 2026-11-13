@@ -4,8 +4,10 @@ import { GalleryGrid } from '@/components/gallery/gallery-grid'
 import { ItemCard } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import type { GalleryItem } from '@/lib/items/model'
+import { listGallery } from '@/lib/items/server'
 import { renderWithRouter } from '@/test/router'
 
+vi.mock('@/lib/items/server', () => ({ listGallery: vi.fn() }))
 afterEach(cleanup)
 
 const base = {
@@ -151,29 +153,25 @@ describe('ItemDetail', () => {
 
 describe('GalleryGrid', () => {
   it('says so when there is nothing to show', async () => {
-    await renderWithRouter(
-      <GalleryGrid
-        initialPage={{ items: [], nextCursor: null }}
-        loadPage={vi.fn()}
-      />,
-    )
-    expect(screen.getByText('Nothing here yet.')).toBeTruthy()
+    vi.mocked(listGallery).mockResolvedValue({ items: [], nextCursor: null })
+    await renderWithRouter(<GalleryGrid filters={{}} />)
+    expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
   })
 
   it('mixes all item types and loads the next page on demand', async () => {
     const loadPage = vi.fn(() =>
       Promise.resolve({ items: [note], nextCursor: null }),
     )
-    await renderWithRouter(
-      <GalleryGrid
-        initialPage={{ items: [image, link], nextCursor: 'next' }}
-        loadPage={loadPage}
-      />,
-    )
-    expect(screen.getAllByRole('article')).toHaveLength(2)
+    vi.mocked(listGallery)
+      .mockResolvedValueOnce({ items: [image, link], nextCursor: 'next' })
+      .mockImplementation(loadPage)
+    await renderWithRouter(<GalleryGrid filters={{}} />)
+    expect(await screen.findAllByRole('article')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByRole('link', { name: 'Restraint' })).toBeTruthy()
-    expect(loadPage).toHaveBeenCalledWith('next')
+    expect(listGallery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { cursor: 'next' } }),
+    )
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
   })
 })
@@ -187,13 +185,11 @@ it('keeps cards and their credits together when pagination changes the layout', 
   const loadPage = vi
     .fn()
     .mockResolvedValue({ items: items.slice(2), nextCursor: null })
-  await renderWithRouter(
-    <GalleryGrid
-      initialPage={{ items: items.slice(0, 2), nextCursor: 'next' }}
-      loadPage={loadPage}
-    />,
-  )
-  const first = screen.getByRole('link', { name: 'Image 0' })
+  vi.mocked(listGallery)
+    .mockResolvedValueOnce({ items: items.slice(0, 2), nextCursor: 'next' })
+    .mockImplementation(loadPage)
+  await renderWithRouter(<GalleryGrid filters={{}} />)
+  const first = await screen.findByRole('link', { name: 'Image 0' })
   fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
   await screen.findByRole('link', { name: 'Image 5' })
   expect(screen.getByRole('link', { name: 'Image 0' })).toBe(first)

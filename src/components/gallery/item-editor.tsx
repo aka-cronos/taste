@@ -25,6 +25,7 @@ import {
   permanentlyDeleteItem,
   saveItemEdits,
 } from '@/lib/items/manage-server'
+import { handleSessionError, refreshQueries } from '@/lib/refresh-queries'
 
 const textFields = [
   ['title', 'Title'],
@@ -71,8 +72,9 @@ export function ItemEditor({
         setEditing(false)
         toast.success('Item updated.')
         await onEditingEnd?.()
-        await router.invalidate()
-      } catch {
+        await refreshQueries(router)
+      } catch (error) {
+        handleSessionError(router, error)
         setMessage('Could not update the item. Please try again.')
       }
     },
@@ -97,7 +99,8 @@ export function ItemEditor({
     setError('')
     try {
       await action()
-    } catch {
+    } catch (error) {
+      handleSessionError(router, error)
       setError(
         operation === 'delete'
           ? 'Could not delete the item. Please try again.'
@@ -158,7 +161,7 @@ export function ItemEditor({
                         ? 'Moved to inbox.'
                         : 'Published to your gallery.',
                     )
-                    await router.invalidate()
+                    await refreshQueries(router)
                   })
                 }
                 type='button'
@@ -257,7 +260,7 @@ export function ItemEditor({
                         await (onDeleted
                           ? onDeleted()
                           : router.navigate({ to: '/' }))
-                        await router.invalidate()
+                        await refreshQueries(router)
                       }, 'delete')
                     }
                     variant='destructive'

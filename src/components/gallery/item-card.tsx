@@ -94,7 +94,6 @@ export function ItemCard({ item }: { item: GalleryItem }) {
         className='bg-card text-card-foreground focus-visible:ring-ring/50 hover:border-foreground/30 data-[status=active]:border-foreground/50 block overflow-hidden rounded-xl border transition-colors outline-none focus-visible:ring-3'
         mask={itemMask(item.id)}
         // Preloading would reload the gallery, not the item.
-        preload={false}
         resetScroll={false}
         search={search => ({ ...search, add: undefined, item: item.id })}
         to='/'

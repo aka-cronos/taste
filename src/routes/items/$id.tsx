@@ -1,12 +1,14 @@
+import { type QueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { z } from 'zod'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import type { Owner } from '@/lib/auth/owner'
 import { useOwner } from '@/lib/auth/use-owner'
-import { type ItemView, loadItemView } from '@/lib/items/item-view'
+import type { ItemView } from '@/lib/items/item-view'
 import { itemLabel } from '@/lib/items/model'
 import { itemShareMeta } from '@/lib/items/share'
+import { itemQuery } from '@/lib/queries'
 import { getRequestOrigin } from '@/lib/request-origin'
 
 interface ItemPageData extends ItemView {
@@ -19,9 +21,11 @@ async function loadItem({
   context,
 }: {
   params: { id: string }
-  context: { owner: Owner | null }
+  context: { owner: Owner | null; queryClient: QueryClient }
 }): Promise<ItemPageData> {
-  const view = await loadItemView(params.id, Boolean(context.owner))
+  const options = itemQuery(params.id, context.owner?.email)
+  await context.queryClient.ensureQueryData(options)
+  const view = await context.queryClient.fetchQuery(options)
   if (!view) {
     throw notFound()
   }
@@ -57,10 +61,15 @@ export const Route = createFileRoute('/items/$id')({
 })
 
 function ItemPage() {
-  const { item, editor, published, tags } = Route.useLoaderData()
   const owner = useOwner()
+  const { id } = Route.useParams()
+  const { data } = useSuspenseQuery(itemQuery(id, owner?.email))
   const { edit } = Route.useSearch()
   const navigate = Route.useNavigate()
+  if (!data) {
+    throw notFound()
+  }
+  const { item, editor, published, tags } = data
   return (
     <ItemDetail
       editor={

@@ -1,3 +1,4 @@
+import { useRouter } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppForm } from '@/components/forms/app-form'
@@ -16,6 +17,7 @@ import {
   itemFormSchema,
 } from '@/lib/items/input'
 import { safeHttpUrl } from '@/lib/items/model'
+import { handleSessionError } from '@/lib/refresh-queries'
 
 const defaultValues: ItemFormValues = {
   description: '',
@@ -74,6 +76,7 @@ export function AddItem({
     },
     [onOpenChange, open],
   )
+  const router = useRouter()
   const [confirmClose, setConfirmClose] = useState(false)
   const [message, setMessage] = useState('')
   const form = useAppForm({
@@ -110,6 +113,7 @@ export function AddItem({
         setOpen(false, { ignoreBlocker: true })
         await onSaved()
       } catch (error) {
+        handleSessionError(router, error)
         setMessage(
           error instanceof Error
             ? error.message

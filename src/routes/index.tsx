@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { z } from 'zod'
 import { AddItem } from '@/components/gallery/add-item'
@@ -7,7 +8,8 @@ import { itemMask } from '@/components/gallery/item-card'
 import { ItemDrawer } from '@/components/gallery/item-drawer'
 import { useOwner } from '@/lib/auth/use-owner'
 import { galleryFiltersSchema } from '@/lib/items/search'
-import { listGallery, listGalleryTags } from '@/lib/items/server'
+import { galleryQuery, itemQuery, tagsQuery } from '@/lib/queries'
+import { refreshQueries } from '@/lib/refresh-queries'
 
 const gallerySearchSchema = galleryFiltersSchema.and(
   z
@@ -46,16 +48,33 @@ function galleryLocation(filters: Filters, { add, item }: Panel) {
   return { search: filters }
 }
 
+function galleryLoaderDeps({ search }: { search: GallerySearch }) {
+  return { filters: galleryFiltersSchema.parse(search), item: search.item }
+}
+
 export const Route = createFileRoute('/')({
   component: GalleryPage,
-  loader: async ({ deps }) => {
-    const [page, tags] = await Promise.all([
-      listGallery({ data: deps }),
-      listGalleryTags(),
+  loader: async ({ deps, context }) => {
+    await Promise.all([
+      context.queryClient.ensureInfiniteQueryData({
+        ...galleryQuery(deps.filters),
+        revalidateIfStale: true,
+      }),
+      context.queryClient.ensureQueryData({
+        ...tagsQuery(),
+        revalidateIfStale: true,
+      }),
+      deps.item
+        ? context.queryClient
+            .ensureQueryData({
+              ...itemQuery(deps.item, context.owner?.email),
+              revalidateIfStale: true,
+            })
+            .catch(() => undefined)
+        : undefined,
     ])
-    return { page, tags }
   },
-  loaderDeps: ({ search }) => galleryFiltersSchema.parse(search),
+  loaderDeps: galleryLoaderDeps,
   search: {
     middlewares: [
       ({ search, next }) => gallerySearchSchema.parse(next(search)),
@@ -67,8 +86,8 @@ export const Route = createFileRoute('/')({
 function GalleryPage() {
   const owner = useOwner()
   const router = useRouter()
-  const { page, tags } = Route.useLoaderData()
   const { add, item, ...filters } = Route.useSearch()
+  const { data: tags } = useSuspenseQuery(tagsQuery())
   const navigate = Route.useNavigate()
   const showPanel = (panel: Panel, options?: { ignoreBlocker?: boolean }) =>
     navigate({
@@ -84,7 +103,7 @@ function GalleryPage() {
           onOpenChange={(open, options) =>
             showPanel(open ? { add: true } : {}, options)
           }
-          onSaved={() => router.invalidate()}
+          onSaved={() => refreshQueries(router)}
           open={Boolean(add)}
           tags={tags}
         />
@@ -96,9 +115,7 @@ function GalleryPage() {
       />
       <GalleryGrid
         filtered={Boolean(filters.q || filters.type || filters.tags?.length)}
-        initialPage={page}
-        key={JSON.stringify([filters, page])}
-        loadPage={cursor => listGallery({ data: { ...filters, cursor } })}
+        filters={filters}
       />
       <ItemDrawer id={item} onClose={options => showPanel({}, options)} />
     </main>
