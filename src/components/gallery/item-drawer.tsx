@@ -1,11 +1,11 @@
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { GalleryDrawer } from '@/components/gallery/gallery-drawer'
-import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import { useOwner } from '@/lib/auth/use-owner'
 import { type ItemView, loadItemView } from '@/lib/items/item-view'
+import { itemLabel } from '@/lib/items/model'
 
 interface Loaded {
   failed: boolean
@@ -80,7 +80,7 @@ export function ItemDrawer({
     title = 'Could not load the item'
     body = <DrawerMessage>Please try again.</DrawerMessage>
   } else if (shown?.view) {
-    const { editor, item, tags } = shown.view
+    const { editor, item, published, tags } = shown.view
     title = itemLabel(item)
     body = (
       <ItemDetail
@@ -96,6 +96,7 @@ export function ItemDrawer({
           ) : null
         }
         item={item}
+        published={published}
         variant='drawer'
       />
     )

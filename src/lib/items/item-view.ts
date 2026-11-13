@@ -8,6 +8,8 @@ export interface ItemView {
   /** The owner's edit data, or null for visitors. */
   editor: ItemEditorData | null
   item: GalleryItem
+  /** True when the item is in the public gallery and can be shared. */
+  published: boolean
   /** Tag suggestions for the editor. */
   tags: string[]
 }
@@ -20,8 +22,13 @@ export async function loadItemView(
   id: string,
   signedIn: boolean,
 ): Promise<ItemView | null> {
-  const view = signedIn
-    ? await getOwnerItem({ data: { id } })
-    : { editor: null, item: await getGalleryItem({ data: { id } }), tags: [] }
-  return view.item ? { ...view, item: view.item } : null
+  if (!signedIn) {
+    // Visitors only ever get published items.
+    const item = await getGalleryItem({ data: { id } })
+    return item ? { editor: null, item, published: true, tags: [] } : null
+  }
+  const { editor, item, tags } = await getOwnerItem({ data: { id } })
+  return item
+    ? { editor, item, published: editor?.status === 'published', tags }
+    : null
 }

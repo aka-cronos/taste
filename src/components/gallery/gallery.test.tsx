@@ -70,6 +70,28 @@ describe('ItemCard', () => {
     expect(screen.getAllByText('blog.example')).toHaveLength(1)
   })
 
+  it('puts its Share button beside the link, revealed on hover or focus', async () => {
+    await renderWithRouter(<ItemCard item={image} />)
+    const card = screen.getByRole('link', { name: 'Orange disc poster' })
+    const share = screen.getByRole('button', { name: 'Share' })
+    // Buttons can't nest inside links.
+    expect(card.contains(share)).toBe(false)
+    expect(share.parentElement).toBe(card.parentElement)
+    expect(share.classList.contains('pointer-events-none')).toBe(true)
+    expect(share.classList.contains('pointer-events-auto')).toBe(false)
+    expect(share.className).toContain('group-hover/card:pointer-events-auto')
+    expect(share.className).toContain(
+      'group-focus-within/card:pointer-events-auto',
+    )
+    expect(share.className).toContain('focus-visible:pointer-events-auto')
+    expect(share.tabIndex).toBe(0)
+    expect(share.hasAttribute('disabled')).toBe(false)
+    expect(share.className).toContain('opacity-0')
+    expect(share.className).toContain('group-hover/card:opacity-100')
+    expect(share.className).toContain('group-focus-within/card:opacity-100')
+    expect(share.className).toContain('[@media(hover:none)]:hidden')
+  })
+
   it('renders a note card with its text', async () => {
     await renderWithRouter(<ItemCard item={note} />)
     const card = screen.getByRole('link', { name: 'Restraint' })
@@ -79,7 +101,7 @@ describe('ItemCard', () => {
 
 describe('ItemDetail', () => {
   it('shows an image large with tags and a linked credit', async () => {
-    await renderWithRouter(<ItemDetail item={image} />)
+    await renderWithRouter(<ItemDetail item={image} published />)
     expect(
       screen
         .getByRole('img', { name: 'Orange disc poster' })
@@ -100,7 +122,7 @@ describe('ItemDetail', () => {
   })
 
   it('shows a link preview that opens the original', async () => {
-    await renderWithRouter(<ItemDetail item={link} />)
+    await renderWithRouter(<ItemDetail item={link} published />)
     expect(
       screen.getByRole('heading', { name: 'The return of the grid' }),
     ).toBeTruthy()
@@ -113,9 +135,17 @@ describe('ItemDetail', () => {
   })
 
   it('shows a note with its description', async () => {
-    await renderWithRouter(<ItemDetail item={note} />)
+    await renderWithRouter(<ItemDetail item={note} published />)
     expect(screen.getByText('Fewer colors, more contrast.')).toBeTruthy()
     expect(screen.getByText('On restraint')).toBeTruthy()
+  })
+
+  it('offers Share on published items only', async () => {
+    const view = await renderWithRouter(<ItemDetail item={note} published />)
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
+    view.unmount()
+    await renderWithRouter(<ItemDetail item={note} published={false} />)
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
   })
 })
 

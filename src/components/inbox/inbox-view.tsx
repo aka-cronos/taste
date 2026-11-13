@@ -2,7 +2,6 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { BotIcon, FileTextIcon, LinkIcon, UserIcon } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { itemLabel } from '@/components/gallery/item-card'
 import { ReviewEmpty, ReviewLayout } from '@/components/inbox/review-layout'
 import {
   AlertDialog,
@@ -22,7 +21,7 @@ import {
   discardInbox,
   publishInbox,
 } from '@/lib/items/inbox-server'
-import { hostnameOf, type InboxItem } from '@/lib/items/model'
+import { hostnameOf, type InboxItem, itemLabel } from '@/lib/items/model'
 
 interface InboxViewProps {
   /** How many items wait in the inbox, which can exceed those listed. */

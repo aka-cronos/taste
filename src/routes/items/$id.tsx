@@ -1,11 +1,18 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { z } from 'zod'
-import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import type { Owner } from '@/lib/auth/owner'
 import { useOwner } from '@/lib/auth/use-owner'
 import { type ItemView, loadItemView } from '@/lib/items/item-view'
+import { itemLabel } from '@/lib/items/model'
+import { itemShareMeta } from '@/lib/items/share'
+import { getRequestOrigin } from '@/lib/request-origin'
+
+interface ItemPageData extends ItemView {
+  /** The site's origin, for the absolute URLs in the share tags. */
+  origin: string
+}
 
 async function loadItem({
   params,
@@ -13,21 +20,33 @@ async function loadItem({
 }: {
   params: { id: string }
   context: { owner: Owner | null }
-}): Promise<ItemView> {
+}): Promise<ItemPageData> {
   const view = await loadItemView(params.id, Boolean(context.owner))
   if (!view) {
     throw notFound()
   }
-  return view
+  return { ...view, origin: getRequestOrigin() }
+}
+
+/**
+ * The page title, plus Open Graph and Twitter card tags for published items
+ * so shared links preview well. Inbox items are private: no share tags.
+ */
+function itemHead(data: ItemPageData | undefined) {
+  if (!data) {
+    return { meta: [] }
+  }
+  return {
+    meta: [
+      { title: `${itemLabel(data.item)} · Taste` },
+      ...(data.published ? itemShareMeta(data.item, data.origin) : []),
+    ],
+  }
 }
 
 export const Route = createFileRoute('/items/$id')({
   component: ItemPage,
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [{ title: `${itemLabel(loaderData.item)} · Taste` }]
-      : [],
-  }),
+  head: ({ loaderData }) => itemHead(loaderData),
   loader: loadItem,
   notFoundComponent: ItemNotFound,
   // `?edit=true` opens the owner's edit form straight away.
@@ -38,7 +57,7 @@ export const Route = createFileRoute('/items/$id')({
 })
 
 function ItemPage() {
-  const { item, editor, tags } = Route.useLoaderData()
+  const { item, editor, published, tags } = Route.useLoaderData()
   const owner = useOwner()
   const { edit } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -58,6 +77,7 @@ function ItemPage() {
         ) : null
       }
       item={item}
+      published={published}
     />
   )
 }

@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { LinkIcon } from 'lucide-react'
+import { ShareButton } from '@/components/gallery/share-button'
 import type { GalleryImage, GalleryItem } from '@/lib/items/model'
-import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
+import { creditRepeatsSource, hostnameOf, itemLabel } from '@/lib/items/model'
 
 /**
  * Shows `/items/<id>` in the address bar while the item is open in the
@@ -9,16 +10,6 @@ import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
  */
 export function itemMask(id: string) {
   return { params: { id }, to: '/items/$id', unmaskOnReload: true } as const
-}
-
-/** Best short label for an item, used as alt text and titles. */
-export function itemLabel(item: GalleryItem) {
-  return (
-    item.title ||
-    item.description ||
-    (item.sourceUrl ? hostnameOf(item.sourceUrl) : null) ||
-    `Untitled ${item.type}`
-  )
 }
 
 function CardImage({ alt, image }: { alt: string; image: GalleryImage }) {
@@ -86,8 +77,10 @@ function NoteBody({ item }: { item: GalleryItem }) {
 const BODIES = { image: ImageBody, link: LinkBody, note: NoteBody } as const
 
 /**
- * One item in the gallery grid. Opens the item in the gallery drawer, with
- * the item page's URL in the address bar.
+ * One item in the gallery grid, which only shows published items. Opens the
+ * item in the gallery drawer, with the item page's URL in the address bar.
+ * Its Share button shows on hover or keyboard focus; touch screens have no
+ * hover, so they share from the drawer instead.
  */
 export function ItemCard({ item }: { item: GalleryItem }) {
   const Body = BODIES[item.type]
@@ -95,7 +88,7 @@ export function ItemCard({ item }: { item: GalleryItem }) {
   const showCredit =
     item.credit && !(item.type === 'link' && creditRepeatsSource(item))
   return (
-    <article className='mb-3 inline-block w-full break-inside-avoid align-top sm:mb-4'>
+    <article className='group/card relative mb-3 inline-block w-full break-inside-avoid align-top sm:mb-4'>
       <Link
         aria-label={itemLabel(item)}
         className='bg-card text-card-foreground focus-visible:ring-ring/50 hover:border-foreground/30 data-[status=active]:border-foreground/50 block overflow-hidden rounded-xl border transition-colors outline-none focus-visible:ring-3'
@@ -108,6 +101,13 @@ export function ItemCard({ item }: { item: GalleryItem }) {
       >
         <Body item={item} />
       </Link>
+      {/* A sibling of the link: buttons can't nest inside links. */}
+      <ShareButton
+        className='pointer-events-none absolute top-2 right-2 opacity-0 shadow-sm transition-opacity group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 group-hover/card:pointer-events-auto group-hover/card:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:hidden'
+        item={item}
+        size='icon-sm'
+        variant='secondary'
+      />
       {showCredit && item.credit ? (
         <p className='text-muted-foreground mt-1 truncate px-1 text-xs'>
           {item.credit.label}
