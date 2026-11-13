@@ -8,11 +8,14 @@ import {
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
-import { getInbox } from '@/lib/items/inbox-server'
+import { getDiscarded, getInbox } from '@/lib/items/inbox-server'
 import { Route } from '@/routes/inbox'
+import { Route as DiscardedRoute } from '@/routes/inbox_.discarded'
 
 vi.mock('@/lib/items/inbox-server', () => ({
   discardInbox: vi.fn(),
+  forgetDiscarded: vi.fn(),
+  getDiscarded: vi.fn(),
   getInbox: vi.fn(),
   publishInbox: vi.fn(),
 }))
@@ -23,6 +26,16 @@ const owner = { email: 'owner@example.com', image: null, name: 'Owner' }
 afterEach(cleanup)
 beforeEach(() => {
   vi.mocked(getInbox).mockReset()
+  vi.mocked(getDiscarded).mockReset()
+  vi.mocked(getDiscarded).mockResolvedValue([
+    {
+      discardedAt: 1,
+      id: 1,
+      sourceHost: 'example.com',
+      sourceUrl: 'https://example.com/post',
+      title: 'Discarded post',
+    },
+  ])
   vi.mocked(getInbox).mockResolvedValue({
     count: 1,
     items: [
@@ -43,7 +56,7 @@ beforeEach(() => {
   })
 })
 
-async function openInbox(signedIn: Owner | null) {
+async function openInbox(signedIn: Owner | null, path = '/inbox') {
   const root = createRootRoute({
     beforeLoad: (): Promise<{
       contactUrl: string | null
@@ -59,9 +72,14 @@ async function openInbox(signedIn: Owner | null) {
       getParentRoute: () => root,
       path: '/inbox',
     }),
+    createRoute({
+      ...DiscardedRoute.options,
+      getParentRoute: () => root,
+      path: '/inbox/discarded',
+    }),
   ])
   const router = createRouter({
-    history: createMemoryHistory({ initialEntries: ['/inbox'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
     routeTree,
   })
   await act(() => router.load())
@@ -79,4 +97,17 @@ it('hides the inbox from visitors without asking the server', async () => {
   expect(screen.getByRole('heading', { name: 'Page not found' })).toBeTruthy()
   expect(screen.queryByText('Saved by Grok')).toBeNull()
   expect(getInbox).not.toHaveBeenCalled()
+})
+
+it('shows what was discarded to the owner', async () => {
+  await openInbox(owner, '/inbox/discarded')
+  expect(screen.getByRole('heading', { name: 'Discarded' })).toBeTruthy()
+  expect(screen.getByText('Discarded post')).toBeTruthy()
+})
+
+it('hides what was discarded from visitors without asking the server', async () => {
+  await openInbox(null, '/inbox/discarded')
+  expect(screen.getByRole('heading', { name: 'Page not found' })).toBeTruthy()
+  expect(screen.queryByText('Discarded post')).toBeNull()
+  expect(getDiscarded).not.toHaveBeenCalled()
 })

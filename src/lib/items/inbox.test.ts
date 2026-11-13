@@ -1,7 +1,17 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import {
+  countDiscards,
+  findDiscard,
+  forgetDiscard,
+  listDiscards,
+} from '@/lib/items/discards'
 import { inboxSelectionSchema } from '@/lib/items/edit-input'
-import { discardInboxItems, publishInboxItems } from '@/lib/items/manage'
+import {
+  deleteItem,
+  discardInboxItems,
+  publishInboxItems,
+} from '@/lib/items/manage'
 import {
   countInboxItems,
   getPublishedItem,
@@ -21,6 +31,7 @@ beforeEach(() => {
   ;({ db, sqlite } = createTestD1())
   insertItem(sqlite, { id: 'public', tags: ['shared'], title: 'Public' })
   insertItem(sqlite, {
+    contentHash: 'hash-agent-image',
     createdAt: 1,
     description: 'Warm brutalist poster',
     id: 'agent-image',
@@ -34,8 +45,9 @@ beforeEach(() => {
     id: 'agent-link',
     imageKey: 'covers/agent-link.jpg',
     origin: 'agent',
-    sourceUrl: 'https://example.com/post',
+    sourceUrl: 'https://www.example.com/post',
     status: 'inbox',
+    title: 'A post',
     type: 'link',
   })
   insertItem(sqlite, { createdAt: 3, id: 'hidden-note', status: 'inbox' })
@@ -108,6 +120,70 @@ describe('inbox', () => {
     }
   })
 
+  it('remembers the source and image hash of each discarded item', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(5000)
+    await discardInboxItems({ bucket, db }, [
+      'agent-image',
+      'agent-link',
+      'hidden-note',
+    ])
+    vi.restoreAllMocks()
+    // The note has neither a source nor an image, so there is nothing to match.
+    const entries = await listDiscards(db)
+    expect(entries).toHaveLength(2)
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        {
+          discardedAt: 5000,
+          id: expect.any(Number),
+          sourceHost: 'example.com',
+          sourceUrl: 'https://www.example.com/post',
+          title: 'A post',
+        },
+        {
+          discardedAt: 5000,
+          id: expect.any(Number),
+          sourceHost: null,
+          sourceUrl: null,
+          title: 'Warm brutalist poster',
+        },
+      ]),
+    )
+    expect(
+      await findDiscard(db, {
+        contentHash: 'hash-agent-image',
+        sourceUrl: null,
+      }),
+    ).toMatchObject({ title: 'Warm brutalist poster' })
+    const post = await findDiscard(db, {
+      contentHash: null,
+      sourceUrl: 'https://www.example.com/post',
+    })
+    expect(post).toMatchObject({ title: 'A post' })
+    expect(await forgetDiscard(db, post?.id ?? 0)).toBe(true)
+    expect(await forgetDiscard(db, post?.id ?? 0)).toBe(false)
+    expect(
+      await findDiscard(db, {
+        contentHash: null,
+        sourceUrl: 'https://www.example.com/post',
+      }),
+    ).toBeNull()
+    expect(await countDiscards(db)).toBe(1)
+  })
+
+  it('remembers nothing when an item is deleted instead', async () => {
+    insertItem(sqlite, {
+      id: 'published-link',
+      sourceUrl: 'https://example.com/kept',
+      type: 'link',
+    })
+    await deleteItem({ bucket, db }, 'agent-link')
+    await deleteItem({ bucket, db }, 'agent-image')
+    await deleteItem({ bucket, db }, 'published-link')
+    expect(await countInboxItems(db)).toBe(1)
+    expect(await countDiscards(db)).toBe(0)
+  })
+
   it('never discards a published item', async () => {
     expect(await discardInboxItems({ bucket, db }, ['public'])).toBe(0)
     expect(bucket.delete).not.toHaveBeenCalled()
@@ -120,7 +196,9 @@ describe('inbox', () => {
       discardInboxItems({ bucket, db }, ['agent-image']),
     ).rejects.toThrow('R2 unavailable')
     expect(await countInboxItems(db)).toBe(3)
+    expect(await countDiscards(db)).toBe(0)
     await discardInboxItems({ bucket, db }, ['agent-image'])
+    expect(await countDiscards(db)).toBe(1)
     expect(await countInboxItems(db)).toBe(2)
   })
 
@@ -130,7 +208,11 @@ describe('inbox', () => {
       insertItem(sqlite, { id, status: 'inbox', type: 'image' })
     }
     for (const id of full.slice(50)) {
-      insertItem(sqlite, { id, status: 'inbox' })
+      insertItem(sqlite, {
+        id,
+        sourceUrl: `https://example.com/${id}`,
+        status: 'inbox',
+      })
     }
     const prepare = db.prepare.bind(db)
     const bound: number[] = []
@@ -145,6 +227,7 @@ describe('inbox', () => {
     }
     expect(await publishInboxItems(db, full.slice(0, 50))).toBe(50)
     expect(await discardInboxItems({ bucket, db }, full)).toBe(50)
+    expect(await countDiscards(db)).toBe(50)
     expect(Math.max(...bound)).toBeLessThanOrEqual(100)
   })
 

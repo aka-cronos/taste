@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as InboxDiscardedRouteImport } from './routes/inbox_.discarded'
 import { Route as ItemsIdRouteImport } from './routes/items/$id'
 import { Route as MediaSplatRouteImport } from './routes/media/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -29,6 +30,11 @@ const InboxRoute = InboxRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxDiscardedRoute = InboxDiscardedRouteImport.update({
+  id: '/inbox_/discarded',
+  path: '/inbox/discarded',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ItemsIdRoute = ItemsIdRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/api/health': typeof ApiHealthRoute
+  '/inbox/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/api/health': typeof ApiHealthRoute
+  '/inbox/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/api/health': typeof ApiHealthRoute
+  '/inbox_/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -75,14 +84,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/inbox' | '/api/health' | '/items/$id' | '/media/$' | '/api/auth/$'
+    | '/'
+    | '/inbox'
+    | '/api/health'
+    | '/inbox/discarded'
+    | '/items/$id'
+    | '/media/$'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/inbox' | '/api/health' | '/items/$id' | '/media/$' | '/api/auth/$'
+  to:
+    | '/'
+    | '/inbox'
+    | '/api/health'
+    | '/inbox/discarded'
+    | '/items/$id'
+    | '/media/$'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/inbox'
     | '/api/health'
+    | '/inbox_/discarded'
     | '/items/$id'
     | '/media/$'
     | '/api/auth/$'
@@ -92,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InboxRoute: typeof InboxRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  InboxDiscardedRoute: typeof InboxDiscardedRoute
   ItemsIdRoute: typeof ItemsIdRoute
   MediaSplatRoute: typeof MediaSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -118,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox_/discarded': {
+      id: '/inbox_/discarded'
+      path: '/inbox/discarded'
+      fullPath: '/inbox/discarded'
+      preLoaderRoute: typeof InboxDiscardedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/items/$id': {
@@ -148,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InboxRoute: InboxRoute,
   ApiHealthRoute: ApiHealthRoute,
+  InboxDiscardedRoute: InboxDiscardedRoute,
   ItemsIdRoute: ItemsIdRoute,
   MediaSplatRoute: MediaSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

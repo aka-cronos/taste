@@ -18,6 +18,9 @@ vi.mock('@/lib/items/inbox-server', () => ({
 afterEach(cleanup)
 
 const EMPTY_INBOX = /Your inbox is empty/u
+const REMEMBERS_SOURCE =
+  /Taste remembers the source so agents won't save it again\. You can undo that in Discarded\./u
+const HELP_LINE = /Discard what doesn't, and agents won't save it again/u
 
 function item(fields: Partial<InboxItem> & { id: string }): InboxItem {
   return {
@@ -111,10 +114,9 @@ it('bulk discards the selected items only after confirmation', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Discard selected' }))
   const dialog = await screen.findByRole('alertdialog')
   expect(within(dialog).getByText('Discard 1 item?')).toBeTruthy()
+  expect(within(dialog).getByText(REMEMBERS_SOURCE)).toBeTruthy()
   expect(onDiscard).not.toHaveBeenCalled()
-  fireEvent.click(
-    within(dialog).getByRole('button', { name: 'Discard permanently' }),
-  )
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
   await waitFor(() => expect(onDiscard).toHaveBeenCalledWith(['note']))
 })
 
@@ -131,4 +133,12 @@ it('explains an empty inbox', async () => {
   await open({ count: 0, items: [] })
   expect(screen.getByText(EMPTY_INBOX)).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Publish selected' })).toBeNull()
+})
+
+it('explains discarding and links to what was discarded', async () => {
+  await open()
+  expect(screen.getByText(HELP_LINE)).toBeTruthy()
+  expect(
+    screen.getByRole('link', { name: 'Discarded' }).getAttribute('href'),
+  ).toBe('/inbox/discarded')
 })

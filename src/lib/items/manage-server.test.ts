@@ -2,6 +2,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
   discardInbox,
+  forgetDiscarded,
+  getDiscarded,
   getInbox,
   getInboxCount,
   publishInbox,
@@ -68,9 +70,11 @@ it.each([
   ['inbox count', getInboxCount],
   ['inbox publish', publishInbox],
   ['inbox discard', discardInbox],
+  ['discarded list', getDiscarded],
+  ['discarded forget', forgetDiscarded],
 ])('rejects anonymous %s calls before touching storage', async (_, call) => {
   await expect(
-    call({ data: { id: 'item', ids: ['item'] } } as never),
+    call({ data: { id: 1, ids: ['item'] } } as never),
   ).rejects.toThrow()
   expect(db.prepare).not.toHaveBeenCalled()
   expect(bucket.delete).not.toHaveBeenCalled()

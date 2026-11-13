@@ -3,6 +3,7 @@ import { BotIcon, FileTextIcon, LinkIcon, UserIcon } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { itemLabel } from '@/components/gallery/item-card'
+import { InboxNav } from '@/components/inbox/inbox-nav'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -141,15 +142,24 @@ export function InboxView({
 
   return (
     <main className='mx-auto max-w-4xl px-4 py-6'>
-      <div className='mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-        <h1 className='font-heading text-2xl font-semibold tracking-tight'>
-          Inbox
-        </h1>
-        <p className='text-muted-foreground text-sm'>
-          {count === 0
-            ? 'Nothing to review.'
-            : `${plural(count)} waiting. Only you can see them.`}
-        </p>
+      <div className='mb-4 flex flex-wrap items-start justify-between gap-3'>
+        <div className='flex flex-col gap-1'>
+          <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+            <h1 className='font-heading text-2xl font-semibold tracking-tight'>
+              Inbox
+            </h1>
+            <p className='text-muted-foreground text-sm'>
+              {count === 0
+                ? 'Nothing to review.'
+                : `${plural(count)} waiting. Only you can see them.`}
+            </p>
+          </div>
+          <p className='text-muted-foreground text-sm'>
+            Publish what fits your taste. Discard what doesn&apos;t, and agents
+            won&apos;t save it again.
+          </p>
+        </div>
+        <InboxNav current='inbox' />
       </div>
 
       {items.length === 0 ? (
@@ -308,10 +318,10 @@ export function InboxView({
               Discard {plural(discarding?.length ?? 0)}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes{' '}
-              {discarding?.length === 1 ? 'the item' : 'the items'} and any
-              stored image or cover. There is no trash and this cannot be
-              undone.
+              {discarding?.length === 1
+                ? "Deletes the item and its image. Taste remembers the source so agents won't save it again."
+                : "Deletes the items and their images. Taste remembers their sources so agents won't save them again."}{' '}
+              You can undo that in Discarded.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && discarding ? <p role='alert'>{error}</p> : null}
@@ -322,7 +332,7 @@ export function InboxView({
               onClick={() => discarding && run('discard', discarding)}
               variant='destructive'
             >
-              {busy ? 'Discarding…' : 'Discard permanently'}
+              {busy ? 'Discarding…' : 'Discard'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

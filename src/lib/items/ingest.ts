@@ -1,3 +1,9 @@
+import {
+  DiscardedSourceError,
+  findDiscard,
+  forgetDiscardsStatement,
+  type SourceKey,
+} from '@/lib/items/discards'
 import { publicUrl } from '@/lib/items/fetch-url'
 import { type ItemInput, itemInputSchema } from '@/lib/items/input'
 import {
@@ -6,6 +12,7 @@ import {
   validateImage,
 } from '@/lib/items/link-metadata'
 import {
+  type ItemOrigin,
   type ItemStatus,
   type ItemType,
   normalizeTagName,
@@ -61,6 +68,33 @@ async function originalImageHash(
   ).join('')
 }
 
+/** Agents may not save what the owner discarded. */
+async function rejectDiscarded(
+  db: D1Database,
+  origin: ItemOrigin,
+  key: SourceKey,
+) {
+  const entry = origin === 'agent' ? await findDiscard(db, key) : null
+  if (entry) {
+    throw new DiscardedSourceError(entry)
+  }
+}
+
+/** The owner adding a source by hand forgets that they discarded it. */
+function forgetOnManualSave(
+  db: D1Database,
+  origin: ItemOrigin,
+  key: SourceKey,
+) {
+  return origin === 'manual' ? [forgetDiscardsStatement(db, key)] : []
+}
+
+/**
+ * Saves an item, or returns the existing one with merged tags when its source
+ * URL or original image is already saved. An agent saving a source the owner
+ * discarded gets a DiscardedSourceError; the owner adding it by hand saves it
+ * and forgets the discard.
+ */
 export async function ingestItem(
   { db, bucket }: { db: D1Database; bucket: Pick<R2Bucket, 'put' | 'delete'> },
   input: IngestInput,
@@ -74,6 +108,7 @@ export async function ingestItem(
   let { image } = input
   let title = input.title?.trim() || null
   let description = input.description?.trim() ?? ''
+  await rejectDiscarded(db, input.origin, { contentHash: null, sourceUrl })
   const existing = sourceUrl
     ? await db
         .prepare('SELECT id FROM items WHERE source_url = ? LIMIT 1')
@@ -87,6 +122,10 @@ export async function ingestItem(
     description ||= metadata.description
   }
   const hash = await originalImageHash(input.type, image)
+  await rejectDiscarded(db, input.origin, {
+    contentHash: hash,
+    sourceUrl: null,
+  })
   const key = image ? `items/${id}` : null
   const match =
     'SELECT id FROM items WHERE id = ?1 OR (?2 IS NOT NULL AND source_url = ?2) OR (?3 IS NOT NULL AND content_hash = ?3) ORDER BY CASE WHEN source_url = ?2 THEN 0 ELSE 1 END, created_at, id LIMIT 1'
@@ -124,6 +163,9 @@ export async function ingestItem(
           hash,
         ),
     ]
+    statements.push(
+      ...forgetOnManualSave(db, input.origin, { contentHash: hash, sourceUrl }),
+    )
     for (const tag of tags) {
       statements.push(
         db
