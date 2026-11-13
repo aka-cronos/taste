@@ -3,11 +3,11 @@ import { toast } from 'sonner'
 import { useAppForm } from '@/components/forms/app-form'
 import { Button } from '@/components/ui/button'
 import { FieldSet } from '@/components/ui/field'
-import { NativeSelectOption } from '@/components/ui/native-select'
 import { addManualItem } from '@/lib/items/add'
 import {
   IMAGE_TYPES,
   type ItemFormValues,
+  imageSchema,
   itemFormSchema,
 } from '@/lib/items/input'
 import { safeHttpUrl } from '@/lib/items/model'
@@ -20,7 +20,35 @@ const defaultValues: ItemFormValues = {
   tags: '',
   type: 'link',
 }
-export function AddItem({ onSaved }: { onSaved: () => Promise<unknown> }) {
+function ImagePreview({ file }: { file: File | undefined }) {
+  const [source, setSource] = useState<string>()
+  useEffect(() => {
+    if (!(file && imageSchema.safeParse(file).success)) {
+      setSource(undefined)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setSource(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  return source ? (
+    <img
+      alt='Selected upload preview'
+      className='h-64 max-w-full rounded-md object-contain'
+      height={256}
+      src={source}
+      width={512}
+    />
+  ) : null
+}
+
+export function AddItem({
+  onSaved,
+  tags = [],
+}: {
+  onSaved: () => Promise<unknown>
+  tags?: string[]
+}) {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const pending = useRef<boolean>(false)
@@ -163,33 +191,32 @@ export function AddItem({ onSaved }: { onSaved: () => Promise<unknown> }) {
                 <FieldSet disabled={busy}>
                   <form.AppField name='type'>
                     {field => (
-                      <field.SelectField
+                      <field.OptionGroupField
+                        disabled={busy}
                         label='Item type'
                         onValueChange={value =>
                           changeType(value as ItemFormValues['type'])
                         }
-                      >
-                        <NativeSelectOption value='link'>
-                          Link
-                        </NativeSelectOption>
-                        <NativeSelectOption value='image'>
-                          Image
-                        </NativeSelectOption>
-                        <NativeSelectOption value='note'>
-                          Note
-                        </NativeSelectOption>
-                      </field.SelectField>
+                        options={[
+                          { label: 'Link', value: 'link' },
+                          { label: 'Image', value: 'image' },
+                          { label: 'Note', value: 'note' },
+                        ]}
+                      />
                     )}
                   </form.AppField>
                   {type === 'image' ? (
                     <form.AppField name='image'>
                       {field => (
-                        <field.FileField
-                          accept={IMAGE_TYPES.join(',')}
-                          dropLabel='Drop an image here or choose a file'
-                          label='Image'
-                          onFile={chooseImage}
-                        />
+                        <>
+                          <field.FileField
+                            accept={IMAGE_TYPES.join(',')}
+                            dropLabel='Drop an image here or choose a file'
+                            label='Image'
+                            onFile={chooseImage}
+                          />
+                          <ImagePreview file={field.state.value} />
+                        </>
                       )}
                     </form.AppField>
                   ) : null}
@@ -207,9 +234,10 @@ export function AddItem({ onSaved }: { onSaved: () => Promise<unknown> }) {
                   ) : null}
                   <form.AppField name='tags'>
                     {field => (
-                      <field.TextField
-                        label='Tags (comma separated)'
-                        placeholder='Typography, warm, posters'
+                      <field.TagsField
+                        disabled={busy}
+                        label='Tags'
+                        suggestions={tags}
                       />
                     )}
                   </form.AppField>

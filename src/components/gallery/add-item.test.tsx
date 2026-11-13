@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -29,9 +30,16 @@ const saved = {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.spyOn(URL, 'createObjectURL').mockImplementation(
+    file => `blob:${(file as File).name}`,
+  )
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
   vi.mocked(addManualItem).mockResolvedValue(saved)
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 function pasteText(text: string) {
   fireEvent.paste(document.body, {
@@ -39,22 +47,33 @@ function pasteText(text: string) {
   })
 }
 
+async function selectTag(tag: string, create = false) {
+  const input = screen.getByRole('combobox', { name: 'Tags' })
+  act(() => input.focus())
+  fireEvent.change(input, { target: { value: tag } })
+  fireEvent.keyDown(input, { key: 'ArrowDown' })
+  fireEvent.click(
+    await screen.findByRole('option', {
+      name: create ? `Create “${tag}”` : tag,
+    }),
+  )
+}
+
 it('pastes a note and publishes it with description and tags', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  render(<AddItem onSaved={onSaved} tags={['warm', 'type']} />)
   pasteText('Warm colors and strong typography')
   fireEvent.change(screen.getByLabelText('Description'), {
     target: { value: 'A palette' },
   })
-  fireEvent.change(screen.getByLabelText('Tags (comma separated)'), {
-    target: { value: 'Warm, Type' },
-  })
+  await selectTag('warm')
+  await selectTag('type')
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
   const data = vi.mocked(addManualItem).mock.calls[0]?.[0]?.data
   expect(data?.get('type')).toBe('note')
   expect(data?.get('note')).toBe('Warm colors and strong typography')
   expect(data?.get('description')).toBe('A palette')
-  expect(data?.get('tags')).toBe('Warm, Type')
+  expect(data?.get('tags')).toBe('warm, type')
   expect(toast.success).toHaveBeenCalledWith('Published to your gallery.')
   expect(screen.queryByLabelText('Note')).toBeNull()
 })
@@ -87,9 +106,7 @@ it.each(['paste', 'picker', 'drop'])(
       fireEvent.paste(document.body, { clipboardData: { files: [file] } })
     } else {
       fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
-      fireEvent.change(screen.getByLabelText('Item type'), {
-        target: { value: 'image' },
-      })
+      fireEvent.click(screen.getByRole('button', { name: 'Image' }))
       if (method === 'picker') {
         fireEvent.change(screen.getByLabelText('Image'), {
           target: { files: [file] },
@@ -104,6 +121,11 @@ it.each(['paste', 'picker', 'drop'])(
       }
     }
     expect(screen.getByText('reference.png')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('img', { name: 'Selected upload preview' })
+        .getAttribute('src'),
+    ).toBe('blob:reference.png')
     fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
     expect(
@@ -191,9 +213,7 @@ it('places server schema failures on the corresponding field', async () => {
 it('shows a field error when submitting without an image', async () => {
   render(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
-  fireEvent.change(screen.getByLabelText('Item type'), {
-    target: { value: 'image' },
-  })
+  fireEvent.click(screen.getByRole('button', { name: 'Image' }))
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await screen.findByText('Choose an image first.')
   expect(screen.getByLabelText('Image').getAttribute('aria-invalid')).toBe(
@@ -253,9 +273,7 @@ it('does not intercept image pastes in text fields', () => {
 it('can correct a missing image after submit and publish', async () => {
   render(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
-  fireEvent.change(screen.getByLabelText('Item type'), {
-    target: { value: 'image' },
-  })
+  fireEvent.click(screen.getByRole('button', { name: 'Image' }))
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await screen.findByText('Choose an image first.')
   fireEvent.change(screen.getByLabelText('Image'), {
@@ -298,4 +316,57 @@ it('keeps the selected image when a drop contains no files', async () => {
   expect(vi.mocked(addManualItem).mock.calls[0]?.[0]?.data?.get('image')).toBe(
     file,
   )
+})
+
+it('selects, creates and removes tag chips before publishing', async () => {
+  render(<AddItem onSaved={onSaved} tags={['warm', 'poster']} />)
+  pasteText('A note')
+  await selectTag('warm')
+  await selectTag('poster')
+  await selectTag('new tag', true)
+  fireEvent.click(
+    within(screen.getByLabelText('Remove warm')).getByRole('button'),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+  expect(vi.mocked(addManualItem).mock.calls[0]?.[0]?.data?.get('tags')).toBe(
+    'poster, new tag',
+  )
+  pasteText('Another note')
+  expect(screen.queryByText('poster')).toBeNull()
+})
+
+it('keeps one type selected and follows automatic paste detection', () => {
+  render(<AddItem onSaved={onSaved} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  const link = screen.getByRole('button', { name: 'Link' })
+  expect(link.getAttribute('aria-pressed')).toBe('true')
+  fireEvent.click(link)
+  expect(link.getAttribute('aria-pressed')).toBe('true')
+  pasteText('A note')
+  expect(
+    screen.getByRole('button', { name: 'Note' }).getAttribute('aria-pressed'),
+  ).toBe('true')
+  pasteText('https://example.com/')
+  expect(link.getAttribute('aria-pressed')).toBe('true')
+})
+
+it('releases preview URLs when replacing images, changing type and unmounting', () => {
+  const { unmount } = render(<AddItem onSaved={onSaved} />)
+  const pasteImage = (name: string) =>
+    fireEvent.paste(document.body, {
+      clipboardData: {
+        files: [new File(['image'], name, { type: 'image/png' })],
+      },
+    })
+  pasteImage('first.png')
+  pasteImage('second.png')
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:first.png')
+  expect(screen.getByRole('img').getAttribute('src')).toBe('blob:second.png')
+  fireEvent.click(screen.getByRole('button', { name: 'Note' }))
+  expect(screen.queryByRole('img')).toBeNull()
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:second.png')
+  pasteImage('third.png')
+  unmount()
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:third.png')
 })
