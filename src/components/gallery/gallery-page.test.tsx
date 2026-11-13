@@ -18,7 +18,6 @@ import { NOT_AUTHORIZED_MESSAGE, type Owner } from '@/lib/auth/owner'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
 import { Route as RootRoute } from '@/routes/__root'
 import { Route } from '@/routes/index'
-import { mockViewport } from '@/test/media-query'
 
 vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
 
@@ -30,12 +29,8 @@ vi.mock('@/lib/auth/session', () => ({ getOwner: vi.fn() }))
 vi.mock('@/lib/site-config', () => ({ getContactUrl: vi.fn() }))
 window.scrollTo = () => undefined
 
-afterEach(() => {
-  cleanup()
-  vi.unstubAllGlobals()
-})
+afterEach(cleanup)
 beforeEach(() => {
-  mockViewport()
   vi.mocked(listGallery).mockReset()
   vi.mocked(listGallery).mockResolvedValue({ items: [], nextCursor: null })
   vi.mocked(listGalleryTags).mockResolvedValue(['poster', 'warm'])

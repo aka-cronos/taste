@@ -1,17 +1,12 @@
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GalleryGrid } from '@/components/gallery/gallery-grid'
 import { ItemCard } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import type { GalleryItem } from '@/lib/items/model'
-import { mockViewport } from '@/test/media-query'
 import { renderWithRouter } from '@/test/router'
 
-beforeEach(() => mockViewport())
-afterEach(() => {
-  cleanup()
-  vi.unstubAllGlobals()
-})
+afterEach(cleanup)
 
 const base = {
   credit: null,
@@ -153,50 +148,28 @@ describe('GalleryGrid', () => {
   })
 })
 
-it.each([375, 640, 1024, 1280])(
-  'places two cards in separate columns at %s px',
-  async width => {
-    mockViewport(width)
-    await renderWithRouter(
-      <GalleryGrid
-        initialPage={{ items: [image, note], nextCursor: null }}
-        loadPage={vi.fn()}
-      />,
-    )
-    const [first, second] = screen.getAllByRole('article')
-    expect(first?.parentElement).not.toBe(second?.parentElement)
-    expect(within(first as HTMLElement).getByText('Ana')).toBeTruthy()
-  },
-)
-
-it('redistributes cards on resize and appends pages to the columns', async () => {
-  const resize = mockViewport(1280)
-  const items = Array.from({ length: 10 }, (_, i) => ({
-    ...note,
-    id: `note-${i}`,
-    title: `Note ${i}`,
+it('keeps cards and their credits together when pagination changes the layout', async () => {
+  const items = Array.from({ length: 6 }, (_, i) => ({
+    ...image,
+    description: `Image ${i}`,
+    id: `image-${i}`,
   }))
-  const loadPage = vi.fn().mockResolvedValue({
-    items: [{ ...note, id: 'extra', title: 'Extra' }],
-    nextCursor: null,
-  })
+  const loadPage = vi
+    .fn()
+    .mockResolvedValue({ items: items.slice(2), nextCursor: null })
   await renderWithRouter(
     <GalleryGrid
-      initialPage={{ items, nextCursor: 'next' }}
+      initialPage={{ items: items.slice(0, 2), nextCursor: 'next' }}
       loadPage={loadPage}
     />,
   )
-  const columns = () => [
-    ...(screen.getAllByRole('article')[0]?.parentElement?.parentElement
-      ?.children ?? []),
-  ]
-  expect(columns().map(column => column.children.length)).toEqual([
-    2, 2, 2, 2, 2,
-  ])
-  await act(() => resize(375))
-  expect(columns().map(column => column.children.length)).toEqual([5, 5])
-  expect(columns()[0]?.textContent).toContain('Note 2')
+  const first = screen.getByRole('link', { name: 'Image 0' })
   fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
-  await screen.findByRole('link', { name: 'Extra' })
-  expect(columns().map(column => column.children.length)).toEqual([6, 5])
+  await screen.findByRole('link', { name: 'Image 5' })
+  expect(screen.getByRole('link', { name: 'Image 0' })).toBe(first)
+  expect(screen.getAllByRole('article')).toHaveLength(6)
+  for (const article of screen.getAllByRole('article')) {
+    expect(within(article).getByText('Ana')).toBeTruthy()
+    expect(within(article).getByRole('link')).toBeTruthy()
+  }
 })

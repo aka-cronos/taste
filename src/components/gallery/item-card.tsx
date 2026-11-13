@@ -84,7 +84,7 @@ export function ItemCard({ item }: { item: GalleryItem }) {
   const showCredit =
     item.credit && !(item.type === 'link' && creditRepeatsSource(item))
   return (
-    <article className='min-w-0'>
+    <article className='mb-3 inline-block w-full break-inside-avoid align-top sm:mb-4'>
       <Link
         aria-label={itemLabel(item)}
         className='bg-card text-card-foreground focus-visible:ring-ring/50 block overflow-hidden rounded-xl border transition-opacity outline-none hover:opacity-90 focus-visible:ring-3'
