@@ -8,6 +8,7 @@ import {
 } from '@/lib/items/discards'
 import { inboxSelectionSchema } from '@/lib/items/edit-input'
 import {
+  deleteInboxItems,
   deleteItem,
   discardInboxItems,
   publishInboxItems,
@@ -169,6 +170,20 @@ describe('inbox', () => {
       }),
     ).toBeNull()
     expect(await countDiscards(db)).toBe(1)
+  })
+
+  it('deletes inbox items with their stored files and remembers nothing', async () => {
+    expect(
+      await deleteInboxItems({ bucket, db }, [
+        'agent-image',
+        'agent-link',
+        'public',
+      ]),
+    ).toBe(2)
+    expect([...objects]).toEqual(['items/public.png'])
+    expect(await countInboxItems(db)).toBe(1)
+    expect(await getPublishedItem(db, 'public')).not.toBeNull()
+    expect(await countDiscards(db)).toBe(0)
   })
 
   it('remembers nothing when an item is deleted instead', async () => {

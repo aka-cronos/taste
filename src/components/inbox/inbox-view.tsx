@@ -17,7 +17,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { discardInbox, publishInbox } from '@/lib/items/inbox-server'
+import {
+  deleteInbox,
+  discardInbox,
+  publishInbox,
+} from '@/lib/items/inbox-server'
 import { hostnameOf, type InboxItem } from '@/lib/items/model'
 
 interface InboxViewProps {
@@ -25,6 +29,7 @@ interface InboxViewProps {
   count: number
   items: InboxItem[]
   /** Overridable for tests. */
+  onDelete?: (ids: string[]) => Promise<unknown>
   onDiscard?: (ids: string[]) => Promise<unknown>
   onPublish?: (ids: string[]) => Promise<unknown>
 }
@@ -69,10 +74,53 @@ function Origin({ origin }: { origin: InboxItem['origin'] }) {
   )
 }
 
-/** The owner's review queue: publish or discard what agents saved. */
+type Removal = 'discard' | 'delete'
+type Action = 'publish' | Removal
+
+const DONE: Record<Action, (items: string) => string> = {
+  delete: items => `Deleted ${items}.`,
+  discard: items => `Discarded ${items}.`,
+  publish: items => `Published ${items} to your gallery.`,
+}
+
+const FAILED: Record<Action, string> = {
+  delete: 'Could not delete. Please try again.',
+  discard: 'Could not discard. Please try again.',
+  publish: 'Could not publish. Please try again.',
+}
+
+/** What each removal does, for its confirmation dialog. */
+function removalCopy(action: Removal, count: number) {
+  const one = count === 1
+  if (action === 'discard') {
+    return {
+      busy: 'Discarding…',
+      confirm: 'Discard',
+      description: `${
+        one
+          ? "Deletes the item and its image. Taste remembers the source so agents won't save it again."
+          : "Deletes the items and their images. Taste remembers their sources so agents won't save them again."
+      } You can undo that in Discarded.`,
+      title: `Discard ${plural(count)}?`,
+    }
+  }
+  return {
+    busy: 'Deleting…',
+    confirm: 'Delete permanently',
+    description: `${
+      one
+        ? 'Permanently deletes the item and its image.'
+        : 'Permanently deletes the items and their images.'
+    } Taste does not remember ${one ? 'it' : 'them'}, so agents may save ${one ? 'it' : 'them'} again.`,
+    title: `Delete ${plural(count)}?`,
+  }
+}
+
+/** The owner's review queue: publish, discard or delete what agents saved. */
 export function InboxView({
   count,
   items,
+  onDelete = ids => deleteInbox({ data: { ids } }),
   onDiscard = ids => discardInbox({ data: { ids } }),
   onPublish = ids => publishInbox({ data: { ids } }),
 }: InboxViewProps) {
@@ -80,8 +128,16 @@ export function InboxView({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const pending = useRef<boolean>(false)
-  const [discarding, setDiscarding] = useState<string[] | null>(null)
+  const [confirming, setConfirming] = useState<{
+    action: Removal
+    ids: string[]
+  } | null>(null)
   const [error, setError] = useState('')
+
+  const copy = removalCopy(
+    confirming?.action ?? 'discard',
+    confirming?.ids.length ?? 0,
+  )
 
   // Drop selections for items that are gone after a refresh.
   const selectedIds = items
@@ -101,10 +157,13 @@ export function InboxView({
     })
   }
 
-  async function run(
-    action: 'publish' | 'discard',
-    ids: string[],
-  ): Promise<void> {
+  const handlers: Record<Action, (ids: string[]) => Promise<unknown>> = {
+    delete: onDelete,
+    discard: onDiscard,
+    publish: onPublish,
+  }
+
+  async function run(action: Action, ids: string[]): Promise<void> {
     if (pending.current || ids.length === 0) {
       return
     }
@@ -112,14 +171,9 @@ export function InboxView({
     setBusy(true)
     setError('')
     try {
-      if (action === 'publish') {
-        await onPublish(ids)
-        toast.success(`Published ${plural(ids.length)} to your gallery.`)
-      } else {
-        await onDiscard(ids)
-        toast.success(`Discarded ${plural(ids.length)}.`)
-      }
-      setDiscarding(null)
+      await handlers[action](ids)
+      toast.success(DONE[action](plural(ids.length)))
+      setConfirming(null)
       setSelected(current => {
         const next = new Set(current)
         for (const id of ids) {
@@ -129,11 +183,7 @@ export function InboxView({
       })
       await router.invalidate()
     } catch {
-      setError(
-        action === 'publish'
-          ? 'Could not publish. Please try again.'
-          : 'Could not discard. Please try again.',
-      )
+      setError(FAILED[action])
     } finally {
       pending.current = false
       setBusy(false)
@@ -156,7 +206,7 @@ export function InboxView({
           </div>
           <p className='text-muted-foreground text-sm'>
             Publish what fits your taste. Discard what doesn&apos;t, and agents
-            won&apos;t save it again.
+            won&apos;t save it again. Delete removes it and remembers nothing.
           </p>
         </div>
         <InboxNav current='inbox' />
@@ -193,15 +243,27 @@ export function InboxView({
             </Button>
             <Button
               disabled={busy || selectedIds.length === 0}
-              onClick={() => setDiscarding(selectedIds)}
+              onClick={() =>
+                setConfirming({ action: 'discard', ids: selectedIds })
+              }
               size='sm'
               variant='destructive'
             >
               Discard selected
             </Button>
+            <Button
+              disabled={busy || selectedIds.length === 0}
+              onClick={() =>
+                setConfirming({ action: 'delete', ids: selectedIds })
+              }
+              size='sm'
+              variant='outline'
+            >
+              Delete selected
+            </Button>
           </div>
 
-          {error && !discarding ? (
+          {error && !confirming ? (
             <p className='text-destructive mb-3 text-sm' role='alert'>
               {error}
             </p>
@@ -281,11 +343,23 @@ export function InboxView({
                       </Link>
                       <Button
                         disabled={busy}
-                        onClick={() => setDiscarding([item.id])}
+                        onClick={() =>
+                          setConfirming({ action: 'discard', ids: [item.id] })
+                        }
                         size='sm'
                         variant='ghost'
                       >
                         Discard
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          setConfirming({ action: 'delete', ids: [item.id] })
+                        }
+                        size='sm'
+                        variant='ghost'
+                      >
+                        Delete
                       </Button>
                     </div>
                   </div>
@@ -306,33 +380,28 @@ export function InboxView({
       <AlertDialog
         onOpenChange={open => {
           if (!(open || pending.current)) {
-            setDiscarding(null)
+            setConfirming(null)
             setError('')
           }
         }}
-        open={discarding !== null}
+        open={confirming !== null}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Discard {plural(discarding?.length ?? 0)}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {discarding?.length === 1
-                ? "Deletes the item and its image. Taste remembers the source so agents won't save it again."
-                : "Deletes the items and their images. Taste remembers their sources so agents won't save them again."}{' '}
-              You can undo that in Discarded.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+            <AlertDialogDescription>{copy.description}</AlertDialogDescription>
           </AlertDialogHeader>
-          {error && discarding ? <p role='alert'>{error}</p> : null}
+          {error && confirming ? <p role='alert'>{error}</p> : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
-              onClick={() => discarding && run('discard', discarding)}
+              onClick={() =>
+                confirming && run(confirming.action, confirming.ids)
+              }
               variant='destructive'
             >
-              {busy ? 'Discarding…' : 'Discard'}
+              {busy ? copy.busy : copy.confirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

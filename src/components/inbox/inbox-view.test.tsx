@@ -11,6 +11,7 @@ import { renderWithRouter } from '@/test/router'
 import { InboxView } from './inbox-view'
 
 vi.mock('@/lib/items/inbox-server', () => ({
+  deleteInbox: vi.fn(),
   discardInbox: vi.fn(),
   publishInbox: vi.fn(),
 }))
@@ -20,6 +21,8 @@ afterEach(cleanup)
 const EMPTY_INBOX = /Your inbox is empty/u
 const REMEMBERS_SOURCE =
   /Taste remembers the source so agents won't save it again\. You can undo that in Discarded\./u
+const REMEMBERS_NOTHING =
+  /Permanently deletes the item and its image\. Taste does not remember it, so agents may save it again\./u
 const HELP_LINE = /Discard what doesn't, and agents won't save it again/u
 
 function item(fields: Partial<InboxItem> & { id: string }): InboxItem {
@@ -53,16 +56,18 @@ const items = [
 async function open(overrides: Partial<Parameters<typeof InboxView>[0]> = {}) {
   const onPublish = vi.fn(() => Promise.resolve())
   const onDiscard = vi.fn(() => Promise.resolve())
+  const onDelete = vi.fn(() => Promise.resolve())
   await renderWithRouter(
     <InboxView
       count={items.length}
       items={items}
+      onDelete={onDelete}
       onDiscard={onDiscard}
       onPublish={onPublish}
       {...overrides}
     />,
   )
-  return { onDiscard, onPublish }
+  return { onDelete, onDiscard, onPublish }
 }
 
 function row(name: string) {
@@ -141,4 +146,29 @@ it('explains discarding and links to what was discarded', async () => {
   expect(
     screen.getByRole('link', { name: 'Discarded' }).getAttribute('href'),
   ).toBe('/inbox/discarded')
+})
+
+it('deletes one item without discarding it, after confirmation', async () => {
+  const { onDelete, onDiscard } = await open()
+  fireEvent.click(row('Poster').getByRole('button', { name: 'Delete' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).getByText('Delete 1 item?')).toBeTruthy()
+  expect(within(dialog).getByText(REMEMBERS_NOTHING)).toBeTruthy()
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Delete permanently' }),
+  )
+  await waitFor(() => expect(onDelete).toHaveBeenCalledWith(['poster']))
+  expect(onDiscard).not.toHaveBeenCalled()
+})
+
+it('bulk deletes the selected items', async () => {
+  const { onDelete } = await open()
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Delete selected' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).getByText('Delete 2 items?')).toBeTruthy()
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Delete permanently' }),
+  )
+  await waitFor(() => expect(onDelete).toHaveBeenCalledWith(['poster', 'note']))
 })

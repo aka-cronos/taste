@@ -13,6 +13,7 @@ import { Route } from '@/routes/inbox'
 import { Route as DiscardedRoute } from '@/routes/inbox_.discarded'
 
 vi.mock('@/lib/items/inbox-server', () => ({
+  deleteInbox: vi.fn(),
   discardInbox: vi.fn(),
   forgetDiscarded: vi.fn(),
   getDiscarded: vi.fn(),

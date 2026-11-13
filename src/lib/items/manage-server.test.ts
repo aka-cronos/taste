@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
+  deleteInbox,
   discardInbox,
   forgetDiscarded,
   getDiscarded,
@@ -70,6 +71,7 @@ it.each([
   ['inbox count', getInboxCount],
   ['inbox publish', publishInbox],
   ['inbox discard', discardInbox],
+  ['inbox delete', deleteInbox],
   ['discarded list', getDiscarded],
   ['discarded forget', forgetDiscarded],
 ])('rejects anonymous %s calls before touching storage', async (_, call) => {
