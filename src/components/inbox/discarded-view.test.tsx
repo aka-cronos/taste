@@ -75,7 +75,19 @@ it('reports a failed forget', async () => {
   )
 })
 
+it('counts what is remembered in the shared header', async () => {
+  await open()
+  const header = within(screen.getByRole('banner'))
+  expect(header.getByRole('heading', { name: 'Discarded' })).toBeTruthy()
+  expect(header.getByText('2 items remembered.')).toBeTruthy()
+})
+
 it('explains an empty list', async () => {
   await renderWithRouter(<DiscardedView entries={[]} />)
   expect(screen.getByText(NOTHING_DISCARDED)).toBeTruthy()
+  expect(
+    screen.getByText('What you discard from the inbox shows up here.'),
+  ).toBeTruthy()
+  expect(screen.getByText('Nothing to forget.')).toBeTruthy()
+  expect(screen.queryByRole('list', { name: 'Discarded items' })).toBeNull()
 })

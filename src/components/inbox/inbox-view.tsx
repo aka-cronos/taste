@@ -3,7 +3,7 @@ import { BotIcon, FileTextIcon, LinkIcon, UserIcon } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { itemLabel } from '@/components/gallery/item-card'
-import { InboxNav } from '@/components/inbox/inbox-nav'
+import { ReviewEmpty, ReviewLayout } from '@/components/inbox/review-layout'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -191,31 +191,25 @@ export function InboxView({
   }
 
   return (
-    <main className='mx-auto max-w-4xl px-4 py-6'>
-      <div className='mb-4 flex flex-wrap items-start justify-between gap-3'>
-        <div className='flex flex-col gap-1'>
-          <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-            <h1 className='font-heading text-2xl font-semibold tracking-tight'>
-              Inbox
-            </h1>
-            <p className='text-muted-foreground text-sm'>
-              {count === 0
-                ? 'Nothing to review.'
-                : `${plural(count)} waiting. Only you can see them.`}
-            </p>
-          </div>
-          <p className='text-muted-foreground text-sm'>
-            Publish what fits your taste. Discard what doesn&apos;t, and agents
-            won&apos;t save it again. Delete removes it and remembers nothing.
-          </p>
-        </div>
-        <InboxNav current='inbox' />
-      </div>
-
+    <ReviewLayout
+      current='inbox'
+      description={
+        <>
+          Publish what fits your taste. Discard what doesn&apos;t, and agents
+          won&apos;t save it again. Delete removes it and remembers nothing.
+        </>
+      }
+      status={
+        count === 0
+          ? 'Nothing to review.'
+          : `${plural(count)} waiting. Only you can see them.`
+      }
+      title='Inbox'
+    >
       {items.length === 0 ? (
-        <p className='text-muted-foreground py-24 text-center'>
-          Your inbox is empty. Items your agents save show up here.
-        </p>
+        <ReviewEmpty title='Your inbox is empty.'>
+          Items your agents save show up here.
+        </ReviewEmpty>
       ) : (
         <>
           <div className='bg-background/95 sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-2 border-b py-2 backdrop-blur'>
@@ -406,6 +400,6 @@ export function InboxView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </ReviewLayout>
   )
 }
