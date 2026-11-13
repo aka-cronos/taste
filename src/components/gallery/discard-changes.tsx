@@ -24,7 +24,8 @@ function panelOf({ pathname, search }: ParsedLocation) {
  * While `enabled`, holds navigations that would close or switch the open
  * drawer (or leave the page) when `isDirty()` returns true, until the owner
  * discards or keeps their changes. Reloading or closing the tab asks the
- * browser to confirm instead.
+ * browser to confirm instead. Pending mutations block navigation outright,
+ * including filter changes that could remount the form.
  *
  * Read dirty state from the form at call time, e.g.
  * `() => form.state.isDirty`.
@@ -32,21 +33,27 @@ function panelOf({ pathname, search }: ParsedLocation) {
 export function useDiscardGuard({
   enabled,
   isDirty,
+  isBusy = () => false,
 }: {
   enabled: boolean
   isDirty: () => boolean
+  isBusy?: () => boolean
 }) {
   const router = useRouter()
   const [pending, setPending] = useState<{
     resolve: (leave: boolean) => void
   } | null>(null)
   const dirty = useEffectEvent(isDirty)
+  const busy = useEffectEvent(isBusy)
   useEffect(() => {
     if (!enabled) {
       return
     }
     return router.history.block({
       blockerFn: async ({ currentLocation, nextLocation }) => {
+        if (busy()) {
+          return true
+        }
         if (
           !dirty() ||
           panelOf(router.parseLocation(currentLocation)) ===
@@ -60,14 +67,14 @@ export function useDiscardGuard({
         setPending(null)
         return !leave
       },
-      enableBeforeUnload: () => dirty(),
+      enableBeforeUnload: () => busy() || dirty(),
     })
   }, [enabled, router])
   return {
     /** A navigation is waiting for the owner to decide. */
     blocked: Boolean(pending),
     /** Lets the waiting navigation through (`true`) or cancels it. */
-    resolve: (leave: boolean) => pending?.resolve(leave),
+    resolve: (leave: boolean) => pending?.resolve(leave && !isBusy()),
   }
 }
 

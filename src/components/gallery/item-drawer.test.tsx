@@ -1,4 +1,5 @@
 import {
+  createBrowserHistory,
   createMemoryHistory,
   createRootRoute,
   createRoute,
@@ -17,8 +18,14 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
+import { addManualItem } from '@/lib/items/add'
 import type { ItemEditorData } from '@/lib/items/edit-input'
-import { getOwnerItem, saveItemEdits } from '@/lib/items/manage-server'
+import {
+  changeItemVisibility,
+  getOwnerItem,
+  permanentlyDeleteItem,
+  saveItemEdits,
+} from '@/lib/items/manage-server'
 import type { GalleryItem } from '@/lib/items/model'
 import {
   getGalleryItem,
@@ -100,7 +107,36 @@ beforeEach(() => {
     })
   })
 })
-afterEach(cleanup)
+let browserHistory: RouterHistory | undefined
+afterEach(() => {
+  cleanup()
+  browserHistory?.destroy()
+  browserHistory = undefined
+})
+
+function openBrowserApp() {
+  window.history.replaceState(null, '', '/')
+  browserHistory = createBrowserHistory()
+  return openApp({ history: browserHistory, signedIn: true })
+}
+
+async function blockedBack(
+  router: Awaited<ReturnType<typeof openApp>>['router'],
+) {
+  const rollback = new Promise<void>(resolve => {
+    window.addEventListener(
+      'popstate',
+      () => {
+        window.addEventListener('popstate', () => resolve(), { once: true })
+      },
+      { once: true },
+    )
+  })
+  await act(async () => {
+    router.history.back()
+    await rollback
+  })
+}
 
 async function openApp({
   history,
@@ -315,4 +351,209 @@ it('opens Add item in a drawer and asks before discarding a draft', async () => 
   expect((within(dialog).getByLabelText('URL') as HTMLInputElement).value).toBe(
     '',
   )
+})
+
+function deferred() {
+  let resolve: () => void = () => undefined
+  let reject: (error: Error) => void = () => undefined
+  const promise = new Promise<void>((done, fail) => {
+    resolve = done
+    reject = fail
+  })
+  return { promise, reject, resolve }
+}
+
+async function tryLeavingPendingDrawer(
+  router: Awaited<ReturnType<typeof openApp>>['router'],
+  dialog: HTMLElement,
+  search: { add: true } | { item: string },
+) {
+  const attempt = async (leave: () => unknown) => {
+    await act(() => {
+      leave()
+    })
+    expect(router.state.location.search).toEqual(search)
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Discard changes?' }),
+    ).toBeNull()
+    expect(dialog.isConnected).toBe(true)
+  }
+  await attempt(() =>
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' })),
+  )
+  await attempt(() =>
+    fireEvent.keyDown(dialog, { code: 'Escape', key: 'Escape' }),
+  )
+  await blockedBack(router)
+  expect(router.state.location.search).toEqual(search)
+  await attempt(() =>
+    fireEvent.click(screen.getByRole('link', { name: 'Beta' })),
+  )
+}
+
+it.each(['success', 'failure'] as const)(
+  'blocks closing, Back and item switching until an add request settles with %s',
+  async outcome => {
+    const request = deferred()
+    vi.mocked(addManualItem).mockImplementation(async () => {
+      await request.promise
+      return {
+        duplicate: false,
+        item: {
+          description: '',
+          id: 'added',
+          note: null,
+          source_url: null,
+          status: 'published',
+          tags: [],
+          title: null,
+          type: 'link',
+        },
+      }
+    })
+    const { router } = await openBrowserApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    const dialog = await drawer('Add item')
+    fireEvent.change(within(dialog).getByLabelText('URL'), {
+      target: { value: 'https://example.com/' },
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish item' }),
+    )
+    await waitFor(() => expect(addManualItem).toHaveBeenCalledOnce())
+    await tryLeavingPendingDrawer(router, dialog, { add: true })
+    expect(router.history.location.href).toBe('/')
+    await act(() => {
+      if (outcome === 'success') {
+        request.resolve()
+      } else {
+        request.reject(new Error('Save failed'))
+      }
+    })
+    if (outcome === 'success') {
+      await waitForNoDrawer()
+      expect(router.state.location.search).toEqual({})
+    } else {
+      expect(await within(dialog).findByRole('alert')).toBeTruthy()
+      expect(
+        (within(dialog).getByLabelText('URL') as HTMLInputElement).value,
+      ).toBe('https://example.com/')
+      await act(() => router.history.back())
+      const confirm = await screen.findByRole('alertdialog', {
+        name: 'Discard changes?',
+      })
+      fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
+      await waitForNoDrawer()
+    }
+  },
+)
+
+it.each(['success', 'failure'] as const)(
+  'blocks closing, Back and item switching until an edit request settles with %s',
+  async outcome => {
+    const request = deferred()
+    vi.mocked(saveItemEdits).mockImplementation(async () => {
+      await request.promise
+      items.a = { ...(items.a as GalleryItem), title: 'Updated' }
+    })
+    const { router } = await openBrowserApp()
+    fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
+    const dialog = await drawer('Alpha')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Edit item' }))
+    fireEvent.change(within(dialog).getByLabelText('Title'), {
+      target: { value: 'Updated' },
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Save changes' }),
+    )
+    await waitFor(() => expect(saveItemEdits).toHaveBeenCalledOnce())
+    await tryLeavingPendingDrawer(router, dialog, { item: 'a' })
+    expect(router.history.location.pathname).toBe('/items/a')
+    await act(() => {
+      if (outcome === 'success') {
+        request.resolve()
+      } else {
+        request.reject(new Error('Save failed'))
+      }
+    })
+    if (outcome === 'success') {
+      const updated = await drawer('Updated')
+      expect(
+        within(updated).getByRole('button', { name: 'Edit item' }),
+      ).toBeTruthy()
+      await act(() => router.history.back())
+      await waitForNoDrawer()
+    } else {
+      expect(await within(dialog).findByRole('alert')).toBeTruthy()
+      expect(
+        (within(dialog).getByLabelText('Title') as HTMLInputElement).value,
+      ).toBe('Updated')
+      await act(() => router.history.back())
+      const confirm = await screen.findByRole('alertdialog', {
+        name: 'Discard changes?',
+      })
+      fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
+      await waitForNoDrawer()
+    }
+  },
+)
+
+it.each(['visibility', 'delete'] as const)(
+  'blocks navigation during a pending %s mutation and releases it after failure',
+  async operation => {
+    const request = deferred()
+    vi.mocked(changeItemVisibility).mockReturnValue(request.promise)
+    vi.mocked(permanentlyDeleteItem).mockReturnValue(request.promise)
+    const { router } = await openBrowserApp()
+    fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
+    const dialog = await drawer('Alpha')
+    if (operation === 'visibility') {
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Move to inbox' }),
+      )
+      await waitFor(() => expect(changeItemVisibility).toHaveBeenCalledOnce())
+      await tryLeavingPendingDrawer(router, dialog, { item: 'a' })
+    } else {
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Delete item' }),
+      )
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Delete permanently' }),
+      )
+      await waitFor(() => expect(permanentlyDeleteItem).toHaveBeenCalledOnce())
+      await blockedBack(router)
+      await act(() => {
+        router.navigate({ search: { item: 'b' }, to: '/' } as never)
+      })
+      expect(router.state.location.search).toEqual({ item: 'a' })
+      expect(screen.getByRole('alertdialog').textContent).toContain('Deleting…')
+    }
+    await act(() => request.reject(new Error('Request failed')))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    if (operation === 'delete') {
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    }
+    await act(() => router.history.back())
+    await waitForNoDrawer()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  },
+)
+
+it('closes after a pending delete succeeds without offering to discard or blocking its completion', async () => {
+  const request = deferred()
+  vi.mocked(permanentlyDeleteItem).mockReturnValue(request.promise)
+  const { router } = await openBrowserApp()
+  fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
+  const dialog = await drawer('Alpha')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Delete item' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Delete permanently' }),
+  )
+  await waitFor(() => expect(permanentlyDeleteItem).toHaveBeenCalledOnce())
+  await blockedBack(router)
+  expect(router.state.location.search).toEqual({ item: 'a' })
+  await act(() => request.resolve())
+  await waitForNoDrawer()
+  expect(router.state.location.search).toEqual({})
+  expect(screen.queryByRole('alertdialog')).toBeNull()
 })

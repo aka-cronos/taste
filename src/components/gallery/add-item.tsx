@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppForm } from '@/components/forms/app-form'
 import {
@@ -58,7 +58,7 @@ export function AddItem({
   open: controlledOpen,
   tags = [],
 }: {
-  onOpenChange?: (open: boolean) => void
+  onOpenChange?: (open: boolean, options?: { ignoreBlocker?: boolean }) => void
   onSaved: () => Promise<unknown>
   open?: boolean
   tags?: string[]
@@ -66,17 +66,16 @@ export function AddItem({
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const open = controlledOpen ?? uncontrolledOpen
   const setOpen = useCallback(
-    (next: boolean) => {
+    (next: boolean, options?: { ignoreBlocker?: boolean }) => {
       setUncontrolledOpen(next)
       if (next !== open) {
-        onOpenChange?.(next)
+        onOpenChange?.(next, options)
       }
     },
     [onOpenChange, open],
   )
   const [confirmClose, setConfirmClose] = useState(false)
   const [message, setMessage] = useState('')
-  const pending = useRef<boolean>(false)
   const form = useAppForm({
     defaultValues,
     onSubmit: async ({ value }) => {
@@ -108,7 +107,7 @@ export function AddItem({
           result.duplicate ? duplicateMessage : 'Published to your gallery.',
         )
         form.reset()
-        setOpen(false)
+        setOpen(false, { ignoreBlocker: true })
         await onSaved()
       } catch (error) {
         setMessage(
@@ -122,6 +121,7 @@ export function AddItem({
   })
   const guard = useDiscardGuard({
     enabled: open,
+    isBusy: () => form.state.isSubmitting,
     isDirty: () => form.state.isDirty,
   })
   function discard() {
@@ -156,7 +156,7 @@ export function AddItem({
   )
   useEffect(() => {
     function paste(event: ClipboardEvent) {
-      if (pending.current) {
+      if (form.state.isSubmitting) {
         return
       }
       if (
@@ -197,6 +197,9 @@ export function AddItem({
       </p>
       <GalleryDrawer
         onClose={() => {
+          if (form.state.isSubmitting) {
+            return
+          }
           if (form.state.isDirty) {
             setConfirmClose(true)
           } else {
@@ -214,15 +217,10 @@ export function AddItem({
               noValidate
               onSubmit={async event => {
                 event.preventDefault()
-                if (pending.current) {
+                if (form.state.isSubmitting) {
                   return
                 }
-                pending.current = true
-                try {
-                  await form.handleSubmit()
-                } finally {
-                  pending.current = false
-                }
+                await form.handleSubmit()
               }}
             >
               <FieldSet disabled={busy}>
@@ -301,6 +299,9 @@ export function AddItem({
       </GalleryDrawer>
       <DiscardChangesDialog
         onDiscard={() => {
+          if (form.state.isSubmitting) {
+            return
+          }
           discard()
           if (guard.blocked) {
             guard.resolve(true)

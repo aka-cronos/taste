@@ -56,7 +56,7 @@ export function ItemEditor({
   const router = useRouter()
   const [editing, setEditing] = useState(startEditing)
   const [actionBusy, setActionBusy] = useState(false)
-  const pending = useRef<boolean>(false)
+  const actionPending = useRef<boolean>(false)
   const [message, setMessage] = useState('')
   const [deleteMessage, setDeleteMessage] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -79,18 +79,19 @@ export function ItemEditor({
     validators: { onBlur: editItemSchema, onSubmit: editItemSchema },
   })
   const guard = useDiscardGuard({
-    enabled: confirmDiscard && editing,
-    isDirty: () => form.state.isDirty,
+    enabled: confirmDiscard,
+    isBusy: () => form.state.isSubmitting || actionPending.current,
+    isDirty: () => editing && form.state.isDirty,
   })
 
   async function run(
     action: () => Promise<unknown>,
     operation: 'update' | 'delete' = 'update',
   ) {
-    if (pending.current) {
+    if (actionPending.current || form.state.isSubmitting) {
       return
     }
-    pending.current = true
+    actionPending.current = true
     setActionBusy(true)
     const setError = operation === 'delete' ? setDeleteMessage : setMessage
     setError('')
@@ -103,7 +104,7 @@ export function ItemEditor({
           : 'Could not update the item. Please try again.',
       )
     } finally {
-      pending.current = false
+      actionPending.current = false
       setActionBusy(false)
     }
   }
@@ -176,15 +177,10 @@ export function ItemEditor({
                 noValidate
                 onSubmit={async event => {
                   event.preventDefault()
-                  if (pending.current) {
+                  if (actionPending.current || form.state.isSubmitting) {
                     return
                   }
-                  pending.current = true
-                  try {
-                    await form.handleSubmit()
-                  } finally {
-                    pending.current = false
-                  }
+                  await form.handleSubmit()
                 }}
               >
                 <FieldSet disabled={disabled}>
@@ -221,7 +217,7 @@ export function ItemEditor({
             ) : null}
             <AlertDialog
               onOpenChange={open => {
-                if (!pending.current) {
+                if (!(actionPending.current || form.state.isSubmitting)) {
                   setDeleteMessage('')
                   setConfirmDelete(open)
                 }
@@ -274,6 +270,9 @@ export function ItemEditor({
             {message && !confirmDelete ? <p role='alert'>{message}</p> : null}
             <DiscardChangesDialog
               onDiscard={() => {
+                if (actionPending.current || form.state.isSubmitting) {
+                  return
+                }
                 form.reset(defaultValues)
                 guard.resolve(true)
               }}

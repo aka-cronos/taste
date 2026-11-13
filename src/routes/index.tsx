@@ -81,7 +81,9 @@ function GalleryPage() {
       <h1 className='sr-only'>Taste</h1>
       {owner ? (
         <AddItem
-          onOpenChange={open => showPanel(open ? { add: true } : {})}
+          onOpenChange={(open, options) =>
+            showPanel(open ? { add: true } : {}, options)
+          }
           onSaved={() => router.invalidate()}
           open={Boolean(add)}
           tags={tags}
