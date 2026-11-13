@@ -1,10 +1,19 @@
 import { decodeHTML, decodeHTMLAttribute } from 'entities'
+import { z } from 'zod'
 import {
   fetchPublicUrl,
   MAX_PAGE_BYTES,
   publicUrl,
+  UnsafeUrlError,
 } from '@/lib/items/fetch-url'
 import { IMAGE_ERROR, imageSchema, MAX_IMAGE_BYTES } from '@/lib/items/input'
+
+const TRAILING_DOT = /\.$/u
+const YOUTUBE_VIDEO_ID = /^[a-zA-Z0-9_-]{11}$/u
+const youtubeMetadataSchema = z.object({
+  thumbnail_url: z.string().optional(),
+  title: z.string(),
+})
 
 const GIF_SIGNATURE = /^GIF8[79]a$/u
 
@@ -34,7 +43,77 @@ export function validateImage(image: StoredImage) {
   }
 }
 
+function youtubeVideoUrl(url: URL) {
+  const host = url.hostname.replace(TRAILING_DOT, '')
+  let id: string | null = null
+  if (
+    ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host) &&
+    url.pathname === '/watch'
+  ) {
+    id = url.searchParams.get('v')
+  } else if (host === 'youtu.be') {
+    id = url.pathname.slice(1)
+  }
+  return id && YOUTUBE_VIDEO_ID.test(id)
+    ? `https://www.youtube.com/watch?v=${id}`
+    : null
+}
+
+async function fetchCover(cover: string | undefined, sourceUrl: string) {
+  if (!cover) {
+    return
+  }
+  try {
+    const image = await fetchPublicUrl(
+      publicUrl(new URL(cover, sourceUrl).href).href,
+      MAX_IMAGE_BYTES,
+    )
+    validateImage(image)
+    return image
+  } catch {
+    // Cover art is optional when the destination or image fails validation.
+  }
+}
+
+async function fetchYoutubeMetadata(videoUrl: string) {
+  let title: string | null = null
+  let cover: string | undefined
+  try {
+    const endpoint = new URL('https://www.youtube.com/oembed')
+    endpoint.searchParams.set('url', videoUrl)
+    endpoint.searchParams.set('format', 'json')
+    const page = await fetchPublicUrl(endpoint.href, MAX_PAGE_BYTES)
+    if (page.contentType !== 'application/json') {
+      throw new Error('YouTube metadata must be JSON.')
+    }
+    const metadata = youtubeMetadataSchema.parse(
+      JSON.parse(new TextDecoder().decode(page.bytes)),
+    )
+    title = metadata.title.trim().slice(0, 500) || null
+    cover = metadata.thumbnail_url
+  } catch {
+    // YouTube metadata is optional: blocked or unavailable videos can still be saved.
+  }
+  return { description: '', image: await fetchCover(cover, videoUrl), title }
+}
+
 export async function fetchLinkMetadata(sourceUrl: string) {
+  const url = publicUrl(sourceUrl)
+  const videoUrl = youtubeVideoUrl(url)
+  if (videoUrl) {
+    return fetchYoutubeMetadata(videoUrl)
+  }
+  try {
+    return await fetchPageMetadata(url.href)
+  } catch (error) {
+    if (error instanceof UnsafeUrlError) {
+      throw error
+    }
+    return { description: '', image: undefined, title: null }
+  }
+}
+
+async function fetchPageMetadata(sourceUrl: string) {
   const page = await fetchPublicUrl(sourceUrl, MAX_PAGE_BYTES)
   if (
     page.contentType !== 'text/html' &&
@@ -66,20 +145,11 @@ export async function fetchLinkMetadata(sourceUrl: string) {
     )
     .arrayBuffer()
   const metadata = pageMetadata(values, title)
-  const { cover } = metadata
-  let image: StoredImage | undefined
-  if (cover) {
-    try {
-      image = await fetchPublicUrl(
-        publicUrl(new URL(cover, sourceUrl).href).href,
-        MAX_IMAGE_BYTES,
-      )
-      validateImage(image)
-    } catch {
-      image = undefined
-    }
+  return {
+    description: metadata.description,
+    image: await fetchCover(metadata.cover, sourceUrl),
+    title: metadata.title,
   }
-  return { description: metadata.description, image, title: metadata.title }
 }
 
 export function pageMetadata(values: Map<string, string>, title: string) {

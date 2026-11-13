@@ -8,6 +8,8 @@ const TRAILING_DOT = /\.$/u
 
 export const MAX_PAGE_BYTES = 1024 * 1024
 
+export class UnsafeUrlError extends Error {}
+
 export function isPublicAddress(address: string): boolean {
   if (IPV4.test(address)) {
     const [a = 0, b = 0] = address.split('.').map(Number)
@@ -54,7 +56,7 @@ export function publicUrl(value: string) {
     host.endsWith('.local') ||
     (isIP(host) && !isPublicAddress(host))
   ) {
-    throw new Error('Use a public HTTP or HTTPS URL.')
+    throw new UnsafeUrlError('Use a public HTTP or HTTPS URL.')
   }
   url.hash = ''
   return url
@@ -101,10 +103,10 @@ export async function fetchPublicUrl(value: string, limit: number) {
     const addresses = answers.flatMap(answer =>
       answer.status === 'fulfilled' ? answer.value : [],
     )
-    if (
-      !addresses.length ||
-      addresses.some(address => !isPublicAddress(address))
-    ) {
+    if (addresses.some(address => !isPublicAddress(address))) {
+      throw new UnsafeUrlError('The URL must resolve to public addresses.')
+    }
+    if (!addresses.length) {
       throw new Error('The URL must resolve to public addresses.')
     }
   }
@@ -117,7 +119,11 @@ export async function fetchPublicUrl(value: string, limit: number) {
   })
   if (!response.ok) {
     await response.body?.cancel()
-    throw new Error('The URL could not be fetched. Redirects are not followed.')
+    throw new Error(
+      response.status >= 300 && response.status < 400
+        ? `The URL returned a redirect (HTTP ${response.status}). Redirects are not followed.`
+        : `The URL could not be fetched (HTTP ${response.status}).`,
+    )
   }
   const bytes = await readLimited(response, limit)
   return {
