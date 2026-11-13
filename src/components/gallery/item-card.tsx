@@ -3,6 +3,14 @@ import { LinkIcon } from 'lucide-react'
 import type { GalleryImage, GalleryItem } from '@/lib/items/model'
 import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
 
+/**
+ * Shows `/items/<id>` in the address bar while the item is open in the
+ * gallery drawer. A reload or a direct visit opens the full item page.
+ */
+export function itemMask(id: string) {
+  return { params: { id }, to: '/items/$id', unmaskOnReload: true } as const
+}
+
 /** Best short label for an item, used as alt text and titles. */
 export function itemLabel(item: GalleryItem) {
   return (
@@ -77,7 +85,10 @@ function NoteBody({ item }: { item: GalleryItem }) {
 
 const BODIES = { image: ImageBody, link: LinkBody, note: NoteBody } as const
 
-/** One item in the gallery grid. Opens the item's detail view. */
+/**
+ * One item in the gallery grid. Opens the item in the gallery drawer, with
+ * the item page's URL in the address bar.
+ */
 export function ItemCard({ item }: { item: GalleryItem }) {
   const Body = BODIES[item.type]
   // Link cards already show the source's hostname inside the card.
@@ -87,9 +98,13 @@ export function ItemCard({ item }: { item: GalleryItem }) {
     <article className='mb-3 inline-block w-full break-inside-avoid align-top sm:mb-4'>
       <Link
         aria-label={itemLabel(item)}
-        className='bg-card text-card-foreground focus-visible:ring-ring/50 hover:border-foreground/30 block overflow-hidden rounded-xl border transition-colors outline-none focus-visible:ring-3'
-        params={{ id: item.id }}
-        to='/items/$id'
+        className='bg-card text-card-foreground focus-visible:ring-ring/50 hover:border-foreground/30 data-[status=active]:border-foreground/50 block overflow-hidden rounded-xl border transition-colors outline-none focus-visible:ring-3'
+        mask={itemMask(item.id)}
+        // Preloading would reload the gallery, not the item.
+        preload={false}
+        resetScroll={false}
+        search={search => ({ ...search, add: undefined, item: item.id })}
+        to='/'
       >
         <Body item={item} />
       </Link>

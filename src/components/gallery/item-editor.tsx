@@ -3,6 +3,10 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppForm } from '@/components/forms/app-form'
 import {
+  DiscardChangesDialog,
+  useDiscardGuard,
+} from '@/components/gallery/discard-changes'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -31,12 +35,18 @@ const textFields = [
 ] as const
 
 export function ItemEditor({
+  confirmDiscard = false,
   initial,
+  onDeleted,
   onEditingEnd,
   startEditing = false,
   tags,
 }: {
+  /** Ask before navigation closes or switches the drawer with unsaved edits. */
+  confirmDiscard?: boolean
   initial: ItemEditorData
+  /** Where to go after deleting; the gallery by default. */
+  onDeleted?: () => Promise<unknown>
   /** Called when the owner saves or cancels edits. */
   onEditingEnd?: () => unknown
   /** Open with the edit form showing, for example from the inbox. */
@@ -67,6 +77,10 @@ export function ItemEditor({
       }
     },
     validators: { onBlur: editItemSchema, onSubmit: editItemSchema },
+  })
+  const guard = useDiscardGuard({
+    enabled: confirmDiscard && editing,
+    isDirty: () => form.state.isDirty,
   })
 
   async function run(
@@ -244,7 +258,9 @@ export function ItemEditor({
                         })
                         setConfirmDelete(false)
                         toast.success('Item permanently deleted.')
-                        await router.navigate({ to: '/' })
+                        await (onDeleted
+                          ? onDeleted()
+                          : router.navigate({ to: '/' }))
                         await router.invalidate()
                       }, 'delete')
                     }
@@ -256,6 +272,14 @@ export function ItemEditor({
               </AlertDialogContent>
             </AlertDialog>
             {message && !confirmDelete ? <p role='alert'>{message}</p> : null}
+            <DiscardChangesDialog
+              onDiscard={() => {
+                form.reset(defaultValues)
+                guard.resolve(true)
+              }}
+              onKeepEditing={() => guard.resolve(false)}
+              open={guard.blocked}
+            />
           </section>
         )
       }}

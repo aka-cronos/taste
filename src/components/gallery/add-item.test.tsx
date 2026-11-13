@@ -2,7 +2,6 @@ import {
   act,
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
@@ -11,6 +10,7 @@ import { toast } from 'sonner'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AddItem } from '@/components/gallery/add-item'
 import { addManualItem } from '@/lib/items/add'
+import { renderWithRouter } from '@/test/router'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
@@ -47,7 +47,16 @@ function pasteText(text: string) {
   })
 }
 
+/** The drawer moves focus into itself once open; wait before focusing fields. */
+async function drawerReady() {
+  const dialog = await screen.findByRole('dialog', { name: 'Add item' })
+  await waitFor(() =>
+    expect(dialog.contains(document.activeElement)).toBe(true),
+  )
+}
+
 async function selectTag(tag: string, create = false) {
+  await drawerReady()
   const input = screen.getByRole('combobox', { name: 'Tags' })
   act(() => input.focus())
   fireEvent.change(input, { target: { value: tag } })
@@ -60,7 +69,7 @@ async function selectTag(tag: string, create = false) {
 }
 
 it('pastes a note and publishes it with description and tags', async () => {
-  render(<AddItem onSaved={onSaved} tags={['warm', 'type']} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} tags={['warm', 'type']} />)
   pasteText('Warm colors and strong typography')
   fireEvent.change(screen.getByLabelText('Description'), {
     target: { value: 'A palette' },
@@ -79,7 +88,7 @@ it('pastes a note and publishes it with description and tags', async () => {
 })
 
 it('detects a pasted URL as a link without intercepting typing in form fields', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   pasteText('https://example.com/article')
   expect(screen.getByLabelText('URL').getAttribute('value')).toBe(
     'https://example.com/article',
@@ -100,7 +109,7 @@ it('detects a pasted URL as a link without intercepting typing in form fields', 
 it.each(['paste', 'picker', 'drop'])(
   'accepts an image through %s',
   async method => {
-    render(<AddItem onSaved={onSaved} />)
+    await renderWithRouter(<AddItem onSaved={onSaved} />)
     const file = new File(['image'], 'reference.png', { type: 'image/png' })
     if (method === 'paste') {
       fireEvent.paste(document.body, { clipboardData: { files: [file] } })
@@ -138,7 +147,7 @@ it('retains the form after an error and reports merged duplicates on retry', asy
   vi.mocked(addManualItem)
     .mockRejectedValueOnce(new Error('Page unavailable'))
     .mockResolvedValueOnce({ ...saved, duplicate: true })
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   pasteText('https://example.com/')
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await waitFor(() =>
@@ -163,7 +172,7 @@ it('prevents a second submission while a save is pending', async () => {
         finish = resolve
       }),
   )
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   pasteText('A note')
   const submit = screen.getByRole('button', { name: 'Publish item' })
   fireEvent.click(submit)
@@ -175,7 +184,7 @@ it('prevents a second submission while a save is pending', async () => {
 })
 
 it('validates after blur and clears errors when corrected', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   const url = screen.getByLabelText('URL')
   fireEvent.change(url, { target: { value: 'invalid' } })
@@ -199,7 +208,7 @@ it('places server schema failures on the corresponding field', async () => {
   vi.mocked(addManualItem).mockResolvedValueOnce({
     fieldErrors: { sourceUrl: 'Server URL error' },
   })
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   pasteText('https://example.com/')
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
   await screen.findByText('Server URL error')
@@ -211,7 +220,7 @@ it('places server schema failures on the corresponding field', async () => {
 })
 
 it('shows a field error when submitting without an image', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   fireEvent.click(screen.getByRole('button', { name: 'Image' }))
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
@@ -225,7 +234,7 @@ it('shows a field error when submitting without an image', async () => {
 it.each(['size', 'type'])(
   'immediately rejects an image with invalid %s',
   async reason => {
-    render(<AddItem onSaved={onSaved} />)
+    await renderWithRouter(<AddItem onSaved={onSaved} />)
     const file =
       reason === 'size'
         ? new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'big.png', {
@@ -244,8 +253,8 @@ it.each(['size', 'type'])(
   },
 )
 
-it('gives controls unique ids when two forms are mounted', () => {
-  render(
+it('gives controls unique ids when two forms are mounted', async () => {
+  await renderWithRouter(
     <>
       <AddItem onSaved={onSaved} />
       <AddItem onSaved={onSaved} />
@@ -258,8 +267,8 @@ it('gives controls unique ids when two forms are mounted', () => {
   expect(urls[0]?.id).not.toBe(urls[1]?.id)
 })
 
-it('does not intercept image pastes in text fields', () => {
-  render(<AddItem onSaved={onSaved} />)
+it('does not intercept image pastes in text fields', async () => {
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   pasteText('A note')
   const event = new Event('paste', { bubbles: true, cancelable: true })
   Object.defineProperty(event, 'clipboardData', {
@@ -271,7 +280,7 @@ it('does not intercept image pastes in text fields', () => {
 })
 
 it('can correct a missing image after submit and publish', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   fireEvent.click(screen.getByRole('button', { name: 'Image' }))
   fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
@@ -286,8 +295,8 @@ it('can correct a missing image after submit and publish', async () => {
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
 })
 
-it('keeps errors hidden on an unblurred field when another field validates', () => {
-  render(<AddItem onSaved={onSaved} />)
+it('keeps errors hidden on an unblurred field when another field validates', async () => {
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   fireEvent.blur(screen.getByLabelText('Description'))
   fireEvent.change(screen.getByLabelText('URL'), {
@@ -297,7 +306,7 @@ it('keeps errors hidden on an unblurred field when another field validates', () 
 })
 
 it('keeps the selected image when a drop contains no files', async () => {
-  render(<AddItem onSaved={onSaved} />)
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   const file = new File(['image'], 'reference.png', { type: 'image/png' })
   fireEvent.paste(document.body, { clipboardData: { files: [file] } })
   fireEvent.drop(
@@ -319,7 +328,9 @@ it('keeps the selected image when a drop contains no files', async () => {
 })
 
 it('selects, creates and removes tag chips before publishing', async () => {
-  render(<AddItem onSaved={onSaved} tags={['warm', 'poster']} />)
+  await renderWithRouter(
+    <AddItem onSaved={onSaved} tags={['warm', 'poster']} />,
+  )
   pasteText('A note')
   await selectTag('warm')
   await selectTag('poster')
@@ -336,8 +347,8 @@ it('selects, creates and removes tag chips before publishing', async () => {
   expect(screen.queryByText('poster')).toBeNull()
 })
 
-it('keeps one type selected and follows automatic paste detection', () => {
-  render(<AddItem onSaved={onSaved} />)
+it('keeps one type selected and follows automatic paste detection', async () => {
+  await renderWithRouter(<AddItem onSaved={onSaved} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
   const link = screen.getByRole('button', { name: 'Link' })
   expect(link.getAttribute('aria-pressed')).toBe('true')
@@ -351,8 +362,8 @@ it('keeps one type selected and follows automatic paste detection', () => {
   expect(link.getAttribute('aria-pressed')).toBe('true')
 })
 
-it('releases preview URLs when replacing images, changing type and unmounting', () => {
-  const { unmount } = render(<AddItem onSaved={onSaved} />)
+it('releases preview URLs when replacing images, changing type and unmounting', async () => {
+  const { unmount } = await renderWithRouter(<AddItem onSaved={onSaved} />)
   const pasteImage = (name: string) =>
     fireEvent.paste(document.body, {
       clipboardData: {
@@ -374,8 +385,9 @@ it('releases preview URLs when replacing images, changing type and unmounting', 
 it.each(['warm', 'random'])(
   'selects %s with Enter without publishing',
   async tag => {
-    render(<AddItem onSaved={onSaved} tags={['warm']} />)
+    await renderWithRouter(<AddItem onSaved={onSaved} tags={['warm']} />)
     pasteText('A note')
+    await drawerReady()
     const input = screen.getByRole('combobox', { name: 'Tags' })
     act(() => input.focus())
     fireEvent.input(input, {
