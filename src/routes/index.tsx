@@ -1,10 +1,18 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { z } from 'zod'
 import { AddItem } from '@/components/gallery/add-item'
 import { GalleryFilters } from '@/components/gallery/gallery-filters'
 import { GalleryGrid } from '@/components/gallery/gallery-grid'
 import { useOwner } from '@/lib/auth/use-owner'
 import { galleryFiltersSchema } from '@/lib/items/search'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
+
+const gallerySearchSchema = galleryFiltersSchema.and(
+  z
+    .object({ error: z.string().trim().optional().catch(undefined) })
+    .catch({})
+    .transform(({ error }) => (error ? { error } : {})),
+)
 
 export const Route = createFileRoute('/')({
   component: GalleryPage,
@@ -15,13 +23,13 @@ export const Route = createFileRoute('/')({
     ])
     return { page, tags }
   },
-  loaderDeps: ({ search }) => search,
+  loaderDeps: ({ search }) => galleryFiltersSchema.parse(search),
   search: {
     middlewares: [
-      ({ search, next }) => galleryFiltersSchema.parse(next(search)),
+      ({ search, next }) => gallerySearchSchema.parse(next(search)),
     ],
   },
-  validateSearch: galleryFiltersSchema,
+  validateSearch: gallerySearchSchema,
 })
 
 function GalleryPage() {
