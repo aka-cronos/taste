@@ -197,6 +197,22 @@ async function openApp({
   return { router, view }
 }
 
+async function navigatePanel(
+  router: Awaited<ReturnType<typeof openApp>>['router'],
+  search: { add: true } | { item: string },
+) {
+  await act(() => {
+    router.navigate({
+      mask: {
+        to: 'item' in search ? `/items/${search.item}` : '/',
+        unmaskOnReload: true,
+      },
+      search,
+      to: '/',
+    } as never)
+  })
+}
+
 function drawer(name: string) {
   return screen.findByRole('dialog', { name })
 }
@@ -214,8 +230,13 @@ it('opens a card in a drawer over the gallery with the item URL in the address b
   expect(router.history.location.pathname).toBe('/items/a')
   expect(router.state.location.pathname).toBe('/')
   expect(router.state.location.search).toEqual({ item: 'a' })
-  // The gallery stays rendered and is not reloaded.
-  expect(screen.getByRole('link', { name: 'Beta' })).toBeTruthy()
+  // The gallery stays rendered, but the modal blocks access to it.
+  expect(screen.getByRole('link', { hidden: true, name: 'Beta' })).toBeTruthy()
+  expect(screen.queryByRole('link', { name: 'Beta' })).toBeNull()
+  expect(document.querySelector('[data-slot="drawer-overlay"]')).toBeTruthy()
+  expect(
+    dialog.closest('[data-slot="drawer-viewport"]')?.getAttribute('data-modal'),
+  ).toBe('true')
   expect(listGallery).toHaveBeenCalledOnce()
   // Visitors see the detail only.
   expect(within(dialog).queryByRole('button', { name: 'Edit item' })).toBeNull()
@@ -250,7 +271,7 @@ it('swaps the drawer between items and walks back through them', async () => {
   const { router } = await openApp({})
   fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
   await drawer('Alpha')
-  fireEvent.click(screen.getByRole('link', { name: 'Beta' }))
+  await navigatePanel(router, { item: 'b' })
   await drawer('Beta')
   expect(router.history.location.pathname).toBe('/items/b')
   await act(() => router.history.back())
@@ -296,7 +317,9 @@ it('lets the owner edit and save inside the drawer', async () => {
   })
   expect(within(dialog).getByRole('button', { name: 'Edit item' })).toBeTruthy()
   // The card behind the drawer is refreshed too.
-  expect(await screen.findByRole('link', { name: 'Updated' })).toBeTruthy()
+  expect(
+    await screen.findByRole('link', { hidden: true, name: 'Updated' }),
+  ).toBeTruthy()
 })
 
 it('asks before discarding unsaved edits when switching items or closing', async () => {
@@ -307,7 +330,7 @@ it('asks before discarding unsaved edits when switching items or closing', async
   fireEvent.change(within(dialog).getByLabelText('Title'), {
     target: { value: 'Unsaved' },
   })
-  fireEvent.click(screen.getByRole('link', { name: 'Beta' }))
+  await navigatePanel(router, { item: 'b' })
   let confirm = await screen.findByRole('alertdialog', {
     name: 'Discard changes?',
   })
@@ -327,11 +350,11 @@ it('asks before discarding unsaved edits when switching items or closing', async
 })
 
 it('switches items without asking when the edit form is unchanged', async () => {
-  await openApp({ signedIn: true })
+  const { router } = await openApp({ signedIn: true })
   fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
   const dialog = await drawer('Alpha')
   fireEvent.click(within(dialog).getByRole('button', { name: 'Edit item' }))
-  fireEvent.click(screen.getByRole('link', { name: 'Beta' }))
+  await navigatePanel(router, { item: 'b' })
   await drawer('Beta')
   expect(screen.queryByRole('alertdialog')).toBeNull()
 })
@@ -353,8 +376,8 @@ it('opens Add item in a drawer and asks before discarding a draft', async () => 
   fireEvent.click(within(confirm).getByRole('button', { name: 'Keep editing' }))
   await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
   dialog = await drawer('Add item')
-  // Opening an item while drafting asks too.
-  fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
+  // Route changes while drafting ask too.
+  await navigatePanel(router, { item: 'a' })
   confirm = await screen.findByRole('alertdialog', { name: 'Discard changes?' })
   fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
   await drawer('Alpha')
@@ -362,7 +385,7 @@ it('opens Add item in a drawer and asks before discarding a draft', async () => 
     expect(screen.queryByRole('dialog', { name: 'Add item' })).toBeNull(),
   )
   expect(router.state.location.search).toEqual({ item: 'a' })
-  fireEvent.click(screen.getByRole('button', { name: 'Add item' }))
+  await navigatePanel(router, { add: true })
   dialog = await drawer('Add item')
   expect((within(dialog).getByLabelText('URL') as HTMLInputElement).value).toBe(
     '',
@@ -403,7 +426,7 @@ async function tryLeavingPendingDrawer(
   await blockedBack(router)
   expect(router.state.location.search).toEqual(search)
   await attempt(() =>
-    fireEvent.click(screen.getByRole('link', { name: 'Beta' })),
+    router.navigate({ search: { item: 'b' }, to: '/' } as never),
   )
 }
 
