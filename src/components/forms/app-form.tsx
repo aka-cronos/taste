@@ -298,6 +298,7 @@ function TagsField({
   return (
     <Frame control={control} label={label}>
       <Combobox
+        autoHighlight
         disabled={disabled}
         inputValue={query}
         items={items}

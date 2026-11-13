@@ -370,3 +370,33 @@ it('releases preview URLs when replacing images, changing type and unmounting', 
   unmount()
   expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:third.png')
 })
+
+it.each(['warm', 'random'])(
+  'selects %s with Enter without publishing',
+  async tag => {
+    render(<AddItem onSaved={onSaved} tags={['warm']} />)
+    pasteText('A note')
+    const input = screen.getByRole('combobox', { name: 'Tags' })
+    act(() => input.focus())
+    fireEvent.input(input, {
+      data: tag,
+      inputType: 'insertText',
+      target: { value: tag },
+    })
+    const option = await screen.findByRole('option', {
+      name: tag === 'warm' ? tag : `Create “${tag}”`,
+    })
+    await waitFor(() =>
+      expect(option.hasAttribute('data-highlighted')).toBe(true),
+    )
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(false)
+    expect(screen.getByLabelText(`Remove ${tag}`)).toBeTruthy()
+    expect(addManualItem).not.toHaveBeenCalled()
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Publish item' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(vi.mocked(addManualItem).mock.calls[0]?.[0]?.data?.get('tags')).toBe(
+      tag,
+    )
+  },
+)
