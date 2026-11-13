@@ -82,7 +82,7 @@ it('shows each item with its origin, description, tags and an edit link', async 
   ])
   expect(poster.getByRole('link', { name: 'example.com' })).toBeTruthy()
   expect(poster.getByRole('link', { name: 'Edit' }).getAttribute('href')).toBe(
-    '/items/poster',
+    '/items/poster?edit=true#edit',
   )
   expect(row('Hidden note').getByText('Added by you')).toBeTruthy()
 })

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { z } from 'zod'
 import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
@@ -43,11 +44,18 @@ export const Route = createFileRoute('/items/$id')({
   }),
   loader: loadItem,
   notFoundComponent: ItemNotFound,
+  // `?edit=true` opens the owner's edit form straight away.
+  validateSearch: z
+    .object({ edit: z.boolean().optional().catch(undefined) })
+    .catch({})
+    .transform(({ edit }) => (edit ? { edit } : {})),
 })
 
 function ItemPage() {
   const { item, editor, tags } = Route.useLoaderData()
   const owner = useOwner()
+  const { edit } = Route.useSearch()
+  const navigate = Route.useNavigate()
   return (
     <ItemDetail
       editor={
@@ -55,6 +63,10 @@ function ItemPage() {
           <ItemEditor
             initial={editor}
             key={JSON.stringify(editor)}
+            onEditingEnd={() =>
+              edit ? navigate({ replace: true, search: {} }) : undefined
+            }
+            startEditing={edit}
             tags={tags}
           />
         ) : null

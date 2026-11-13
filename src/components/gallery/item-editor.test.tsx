@@ -72,7 +72,7 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 window.scrollTo = () => undefined
-async function open(signedIn = true) {
+async function open(signedIn = true, url = '/items/item') {
   const root = createRootRoute({
     beforeLoad: (): Promise<{
       contactUrl: string | null
@@ -98,7 +98,7 @@ async function open(signedIn = true) {
     }),
   ])
   const router = createRouter({
-    history: createMemoryHistory({ initialEntries: ['/items/item'] }),
+    history: createMemoryHistory({ initialEntries: [url] }),
     routeTree,
   })
   await act(() => router.load())
@@ -127,6 +127,24 @@ it('saves inline edits and refreshes the displayed item', async () => {
   expect(saveItemEdits).toHaveBeenCalledWith({
     data: expect.objectContaining({ id: 'item', title: 'Updated' }),
   })
+})
+it('opens straight into the edit form from ?edit=true and drops it after saving', async () => {
+  vi.mocked(saveItemEdits).mockImplementation(options => {
+    editor = { ...editor, ...(options?.data as ItemEditorData) }
+    item = { ...item, title: editor.title }
+    return Promise.resolve()
+  })
+  const router = await open(true, '/items/item?edit=true')
+  expect(screen.getByRole('button', { name: 'Cancel editing' })).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'From the inbox' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(
+    await screen.findByRole('heading', { name: 'From the inbox' }),
+  ).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Edit item' })).toBeTruthy()
+  expect(router.state.location.search).toEqual({})
 })
 it('hides and republishes from the same detail page', async () => {
   vi.mocked(changeItemVisibility).mockImplementation(options => {

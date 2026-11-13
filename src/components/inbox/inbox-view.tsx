@@ -261,7 +261,10 @@ export function InboxView({
                           size: 'sm',
                           variant: 'outline',
                         })}
+                        // The form sits below the media on phones.
+                        hash='edit'
                         params={{ id: item.id }}
+                        search={{ edit: true }}
                         to='/items/$id'
                       >
                         Edit
