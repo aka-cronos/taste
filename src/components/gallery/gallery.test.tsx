@@ -77,6 +77,15 @@ describe('ItemCard', () => {
     // Buttons can't nest inside links.
     expect(card.contains(share)).toBe(false)
     expect(share.parentElement).toBe(card.parentElement)
+    expect(share.classList.contains('pointer-events-none')).toBe(true)
+    expect(share.classList.contains('pointer-events-auto')).toBe(false)
+    expect(share.className).toContain('group-hover/card:pointer-events-auto')
+    expect(share.className).toContain(
+      'group-focus-within/card:pointer-events-auto',
+    )
+    expect(share.className).toContain('focus-visible:pointer-events-auto')
+    expect(share.tabIndex).toBe(0)
+    expect(share.hasAttribute('disabled')).toBe(false)
     expect(share.className).toContain('opacity-0')
     expect(share.className).toContain('group-hover/card:opacity-100')
     expect(share.className).toContain('group-focus-within/card:opacity-100')

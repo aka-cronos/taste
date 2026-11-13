@@ -103,7 +103,7 @@ export function ItemCard({ item }: { item: GalleryItem }) {
       </Link>
       {/* A sibling of the link: buttons can't nest inside links. */}
       <ShareButton
-        className='absolute top-2 right-2 opacity-0 shadow-sm transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:hidden'
+        className='pointer-events-none absolute top-2 right-2 opacity-0 shadow-sm transition-opacity group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 group-hover/card:pointer-events-auto group-hover/card:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:hidden'
         item={item}
         size='icon-sm'
         variant='secondary'
