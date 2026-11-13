@@ -4,6 +4,7 @@ import {
   fetchPublicUrl,
   MAX_PAGE_BYTES,
   publicUrl,
+  UnsafeUrlError,
 } from '@/lib/items/fetch-url'
 import { IMAGE_ERROR, imageSchema, MAX_IMAGE_BYTES } from '@/lib/items/input'
 
@@ -102,6 +103,17 @@ export async function fetchLinkMetadata(sourceUrl: string) {
   if (videoUrl) {
     return fetchYoutubeMetadata(videoUrl)
   }
+  try {
+    return await fetchPageMetadata(url.href)
+  } catch (error) {
+    if (error instanceof UnsafeUrlError) {
+      throw error
+    }
+    return { description: '', image: undefined, title: null }
+  }
+}
+
+async function fetchPageMetadata(sourceUrl: string) {
   const page = await fetchPublicUrl(sourceUrl, MAX_PAGE_BYTES)
   if (
     page.contentType !== 'text/html' &&

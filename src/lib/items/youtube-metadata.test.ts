@@ -143,7 +143,10 @@ it.each([
   'uses regular page fetching for unrecognized video URL %s',
   async sourceUrl => {
     fetcher.mockResolvedValueOnce(new Response('Unavailable', { status: 403 }))
-    await expect(fetchLinkMetadata(sourceUrl)).rejects.toThrow('HTTP 403')
+    expect(await fetchLinkMetadata(sourceUrl)).toMatchObject({
+      image: undefined,
+      title: null,
+    })
     expect(fetcher.mock.calls[0]?.[0]).toBe(sourceUrl)
   },
 )
