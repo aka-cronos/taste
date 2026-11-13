@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { ShareButton } from '@/components/gallery/share-button'
 import type { GalleryItem } from '@/lib/items/model'
 import { creditRepeatsSource, hostnameOf, itemLabel } from '@/lib/items/model'
 
@@ -93,19 +94,23 @@ function CreditLine({ item }: { item: GalleryItem }) {
 /**
  * An item shown large, with its text, tags and credit. The `page` variant is
  * the full item page; the `drawer` variant stacks into one column and leaves
- * the title to the drawer's header.
+ * the title to the drawer's header. Published items get a Share button;
+ * inbox items are private and never do.
  */
 export function ItemDetail({
   item,
   editor,
+  published,
   variant = 'page',
 }: {
   item: GalleryItem
   editor?: ReactNode
+  published: boolean
   variant?: 'page' | 'drawer'
 }) {
   const page = variant === 'page'
   const showDescription = item.type !== 'note' || Boolean(item.note)
+  const openLink = item.type === 'link' && item.sourceUrl
   const article = (
     <article
       className={
@@ -129,15 +134,22 @@ export function ItemDetail({
             {item.note}
           </p>
         ) : null}
-        {item.type === 'link' && item.sourceUrl ? (
-          <a
-            className='bg-primary text-primary-foreground hover:bg-primary/80 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg px-3 text-sm font-medium'
-            href={item.sourceUrl}
-            {...EXTERNAL}
-          >
-            Open link
-            <ExternalLinkIcon aria-hidden className='size-4' />
-          </a>
+        {openLink || published ? (
+          <div className='flex flex-wrap items-center gap-2'>
+            {openLink ? (
+              <a
+                className='bg-primary text-primary-foreground hover:bg-primary/80 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg px-3 text-sm font-medium'
+                href={openLink}
+                {...EXTERNAL}
+              >
+                Open link
+                <ExternalLinkIcon aria-hidden className='size-4' />
+              </a>
+            ) : null}
+            {published ? (
+              <ShareButton item={item} size='icon-lg' variant='outline' />
+            ) : null}
+          </div>
         ) : null}
         {item.tags.length > 0 ? (
           <ul aria-label='Tags' className='flex flex-wrap gap-1.5'>

@@ -80,7 +80,7 @@ export function ItemDrawer({
     title = 'Could not load the item'
     body = <DrawerMessage>Please try again.</DrawerMessage>
   } else if (shown?.view) {
-    const { editor, item, tags } = shown.view
+    const { editor, item, published, tags } = shown.view
     title = itemLabel(item)
     body = (
       <ItemDetail
@@ -96,6 +96,7 @@ export function ItemDrawer({
           ) : null
         }
         item={item}
+        published={published}
         variant='drawer'
       />
     )

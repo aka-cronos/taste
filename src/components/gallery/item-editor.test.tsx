@@ -34,6 +34,9 @@ vi.mock('@/lib/items/manage-server', () => ({
   saveItemEdits: vi.fn(),
 }))
 vi.mock('@/lib/items/server', () => ({ getGalleryItem: vi.fn() }))
+vi.mock('@/lib/request-origin', () => ({
+  getRequestOrigin: () => 'https://taste.example',
+}))
 const owner: Owner = { email: 'owner@example.com', image: null, name: 'Owner' }
 let editor: ItemEditorData
 let item: GalleryItem

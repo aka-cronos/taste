@@ -16,7 +16,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
 import { addManualItem } from '@/lib/items/add'
 import type { ItemEditorData } from '@/lib/items/edit-input'
@@ -51,10 +51,15 @@ vi.mock('@/lib/items/manage-server', () => ({
 vi.mock('@/lib/auth/session', () => ({ getOwner: vi.fn() }))
 vi.mock('@/lib/items/inbox-server', () => ({ getInboxCount: vi.fn() }))
 vi.mock('@/lib/site-config', () => ({ getContactUrl: vi.fn() }))
+vi.mock('@/lib/request-origin', () => ({
+  getRequestOrigin: () => 'https://taste.example',
+}))
 window.scrollTo = () => undefined
 
 const owner: Owner = { email: 'owner@example.com', image: null, name: 'Owner' }
 let items: Record<string, GalleryItem>
+/** Ids of items in the owner's inbox; the rest are published. */
+let inbox: Set<string>
 
 function note(id: string, title: string): GalleryItem {
   return {
@@ -78,7 +83,7 @@ function editorFor(item: GalleryItem): ItemEditorData {
     description: item.description,
     id: item.id,
     note: item.note ?? '',
-    status: 'published',
+    status: inbox.has(item.id) ? 'inbox' : 'published',
     tags: item.tags,
     title: item.title ?? '',
   }
@@ -91,6 +96,7 @@ function itemFor(options: { data?: unknown } | undefined) {
 beforeEach(() => {
   vi.resetAllMocks()
   items = { a: note('a', 'Alpha'), b: note('b', 'Beta') }
+  inbox = new Set()
   vi.mocked(listGallery).mockImplementation(() =>
     Promise.resolve({ items: Object.values(items), nextCursor: null }),
   )
@@ -556,4 +562,125 @@ it('closes after a pending delete succeeds without offering to discard or blocki
   await waitForNoDrawer()
   expect(router.state.location.search).toEqual({})
   expect(screen.queryByRole('alertdialog')).toBeNull()
+})
+
+describe('Share', () => {
+  const share = vi.fn<(data: ShareData) => Promise<void>>()
+  beforeEach(() => {
+    share.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: share,
+    })
+  })
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'share')
+  })
+
+  it('shares the item page from a card without opening the drawer', async () => {
+    const { router } = await openApp({ url: '/?q=alpha' })
+    const card = screen.getByRole('link', { name: 'Alpha' })
+    const article = card.closest('article') as HTMLElement
+    fireEvent.click(within(article).getByRole('button', { name: 'Share' }))
+    expect(share).toHaveBeenCalledWith({
+      title: 'Alpha',
+      url: `${window.location.origin}/items/a`,
+    })
+    await act(() => Promise.resolve())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(router.state.location.search).toEqual({ q: 'alpha' })
+    expect(router.history.location.href).toBe('/?q=alpha')
+  })
+
+  it.each([
+    ['visitors', false],
+    ['the owner', true],
+  ])(
+    'shares the canonical item URL from the drawer, for %s',
+    async (_, signedIn) => {
+      await openApp({ signedIn })
+      fireEvent.click(screen.getByRole('link', { name: 'Alpha' }))
+      const dialog = await drawer('Alpha')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Share' }))
+      expect(share).toHaveBeenCalledWith({
+        title: 'Alpha',
+        url: `${window.location.origin}/items/a`,
+      })
+    },
+  )
+
+  it.each([
+    ['visitors', false],
+    ['the owner', true],
+  ])(
+    'shows Share on the full page of a published item, for %s',
+    async (_, signedIn) => {
+      await openApp({ signedIn, url: '/items/a' })
+      expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
+    },
+  )
+
+  it('never shows Share on inbox items, in the drawer or the full page', async () => {
+    inbox.add('a')
+    const { view } = await openApp({ signedIn: true, url: '/?item=a' })
+    const dialog = await drawer('Alpha')
+    expect(
+      within(dialog).getByRole('button', { name: 'Edit item' }),
+    ).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Share' })).toBeNull()
+    view.unmount()
+    await openApp({ signedIn: true, url: '/items/a' })
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Alpha' }),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+  })
+})
+
+describe('item page head', () => {
+  function headTags(router: Awaited<ReturnType<typeof openApp>>['router']) {
+    const match = router.state.matches.find(
+      ({ routeId }) => routeId === '/items/$id',
+    )
+    return Object.fromEntries(
+      (match?.meta ?? []).map(tag => {
+        const { content, name, property, title } = tag as Partial<
+          Record<string, string>
+        >
+        return title ? ['title', title] : [property ?? name, content]
+      }),
+    )
+  }
+
+  it('serves Open Graph and Twitter tags with absolute URLs for published items', async () => {
+    items.a = {
+      ...(items.a as GalleryItem),
+      image: { height: 630, url: '/media/k/a.png', width: 1200 },
+      type: 'image',
+    }
+    const { router } = await openApp({ url: '/items/a' })
+    expect(headTags(router)).toMatchObject({
+      'og:image': 'https://taste.example/media/k/a.png',
+      'og:image:height': '630',
+      'og:image:width': '1200',
+      'og:title': 'Alpha',
+      'og:url': 'https://taste.example/items/a',
+      title: 'Alpha · Taste',
+      'twitter:card': 'summary_large_image',
+    })
+  })
+
+  it('leaves the image out for notes', async () => {
+    const { router } = await openApp({ url: '/items/a' })
+    const tags = headTags(router)
+    expect(tags['og:url']).toBe('https://taste.example/items/a')
+    expect(tags['og:image']).toBeUndefined()
+    expect(tags['twitter:card']).toBe('summary')
+  })
+
+  it('serves no share tags for inbox items', async () => {
+    inbox.add('a')
+    const { router } = await openApp({ signedIn: true, url: '/items/a' })
+    expect(headTags(router)).toEqual({ title: 'Alpha · Taste' })
+  })
 })
