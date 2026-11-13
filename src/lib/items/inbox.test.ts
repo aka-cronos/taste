@@ -124,6 +124,30 @@ describe('inbox', () => {
     expect(await countInboxItems(db)).toBe(2)
   })
 
+  it('handles a full selection in statements within the D1 parameter cap', async () => {
+    const full = Array.from({ length: 100 }, (_, i) => `bulk-${i}`)
+    for (const id of full.slice(0, 50)) {
+      insertItem(sqlite, { id, status: 'inbox', type: 'image' })
+    }
+    for (const id of full.slice(50)) {
+      insertItem(sqlite, { id, status: 'inbox' })
+    }
+    const prepare = db.prepare.bind(db)
+    const bound: number[] = []
+    db.prepare = (sql: string) => {
+      const statement = prepare(sql)
+      const bind = statement.bind.bind(statement)
+      statement.bind = (...values: unknown[]) => {
+        bound.push(values.length)
+        return bind(...values)
+      }
+      return statement
+    }
+    expect(await publishInboxItems(db, full.slice(0, 50))).toBe(50)
+    expect(await discardInboxItems({ bucket, db }, full)).toBe(50)
+    expect(Math.max(...bound)).toBeLessThanOrEqual(100)
+  })
+
   it('validates and deduplicates a selection', () => {
     expect(inboxSelectionSchema.parse({ ids: ['a', 'a', 'b'] })).toEqual({
       ids: ['a', 'b'],

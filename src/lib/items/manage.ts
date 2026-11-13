@@ -110,9 +110,9 @@ export async function listOwnerTags(db: D1Database) {
   return results.map(tag => tag.name)
 }
 
-function placeholders(values: unknown[]) {
-  return values.map(() => '?').join(', ')
-}
+// D1 caps a statement at 100 bound parameters, so a selection of ids is
+// bound as one JSON array and expanded with json_each.
+const IN_IDS = 'IN (SELECT value FROM json_each(?))'
 
 /**
  * Publishes the given inbox items. Ids that are missing or already published
@@ -126,8 +126,8 @@ export async function publishInboxItems(db: D1Database, ids: string[]) {
   const result = await db
     .prepare(`UPDATE items SET status = 'published', updated_at = ?,
     published_at = coalesce(published_at, ?)
-    WHERE status = 'inbox' AND id IN (${placeholders(ids)})`)
-    .bind(now, now, ...ids)
+    WHERE status = 'inbox' AND id ${IN_IDS}`)
+    .bind(now, now, JSON.stringify(ids))
     .run()
   return result.meta.changes ?? 0
 }
@@ -146,8 +146,8 @@ export async function discardInboxItems(
   }
   const { results } = await db
     .prepare(`SELECT id, image_key AS imageKey FROM items
-    WHERE status = 'inbox' AND id IN (${placeholders(ids)})`)
-    .bind(...ids)
+    WHERE status = 'inbox' AND id ${IN_IDS}`)
+    .bind(JSON.stringify(ids))
     .all<{ id: string; imageKey: string | null }>()
   if (results.length === 0) {
     return 0
@@ -159,8 +159,8 @@ export async function discardInboxItems(
   }
   const found = results.map(row => row.id)
   await db
-    .prepare(`DELETE FROM items WHERE id IN (${placeholders(found)})`)
-    .bind(...found)
+    .prepare(`DELETE FROM items WHERE id ${IN_IDS}`)
+    .bind(JSON.stringify(found))
     .run()
   return found.length
 }
