@@ -1,33 +1,33 @@
-import { ITEM_TYPES, type ItemType, normalizeTagName } from '@/lib/items/model'
-
-export interface GalleryFilters {
-  q?: string
-  tags?: string[]
-  type?: ItemType
-}
+import { z } from 'zod'
+import { ITEM_TYPES, normalizeTagName } from '@/lib/items/model'
 
 /** Shared by URL validation and server callers, including MCP tools. */
-export function normalizeGalleryFilters(input: unknown): GalleryFilters {
-  const value = (input && typeof input === 'object' ? input : {}) as Record<
-    string,
-    unknown
-  >
-  const q = typeof value.q === 'string' ? value.q.trim() : ''
-  const rawTags = Array.isArray(value.tags) ? value.tags : [value.tags]
-  const tags = [
-    ...new Set(
-      rawTags
-        .filter((tag): tag is string => typeof tag === 'string')
-        .map(normalizeTagName)
-        .filter(Boolean),
-    ),
-  ].sort()
-  const type = ITEM_TYPES.find(itemType => itemType === value.type)
-  return {
+export const galleryFiltersSchema = z
+  .object({
+    q: z.string().trim().optional().catch(undefined),
+    tags: z
+      .union([
+        z.string().transform(tag => [tag]),
+        z.array(z.string().catch('')),
+      ])
+      .transform(tags =>
+        [...new Set(tags.map(normalizeTagName).filter(Boolean))].sort(),
+      )
+      .optional()
+      .catch(undefined),
+    type: z.enum(ITEM_TYPES).optional().catch(undefined),
+  })
+  .catch({})
+  .transform(({ q, tags, type }) => ({
     ...(q ? { q } : {}),
-    ...(tags.length ? { tags } : {}),
+    ...(tags?.length ? { tags } : {}),
     ...(type ? { type } : {}),
-  }
+  }))
+
+export type GalleryFilters = z.output<typeof galleryFiltersSchema>
+
+export function normalizeGalleryFilters(input: unknown): GalleryFilters {
+  return galleryFiltersSchema.parse(input)
 }
 
 /** Bound predicates for the published-items query (whose item alias is `i`). */

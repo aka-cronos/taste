@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { listPublishedItems, listPublishedTags } from '@/lib/items/repository'
-import { normalizeGalleryFilters } from '@/lib/items/search'
+import {
+  galleryFiltersSchema,
+  normalizeGalleryFilters,
+} from '@/lib/items/search'
 import { createTestD1 } from '@/test/d1'
 import { insertItem, tagItem } from '@/test/items'
 
@@ -126,5 +129,29 @@ describe('normalizeGalleryFilters', () => {
       normalizeGalleryFilters({ q: 1, tags: {}, type: 'invalid' }),
     ).toEqual({})
     expect(normalizeGalleryFilters(null)).toEqual({})
+  })
+})
+
+describe('galleryFiltersSchema', () => {
+  it.each([
+    undefined,
+    null,
+    [],
+    'invalid',
+    { q: 42, tags: {}, type: 'video', unknown: 'ignored' },
+    { q: '   ', tags: ['', '  ', null, 42], type: ['image'] },
+  ])('drops malformed or empty filters from %j', input => {
+    expect(galleryFiltersSchema.parse(input)).toEqual({})
+  })
+
+  it('preserves valid filters alongside invalid values and drops unknown keys', () => {
+    expect(
+      galleryFiltersSchema.parse({
+        q: ' warm ',
+        tags: [' ＷＡＲＭ ', null, 'warm', '', ' Poster '],
+        type: 'invalid',
+        unknown: 'ignored',
+      }),
+    ).toEqual({ q: 'warm', tags: ['poster', 'warm'] })
   })
 })

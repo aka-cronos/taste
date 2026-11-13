@@ -14,8 +14,9 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { Owner } from '@/lib/auth/owner'
+import { NOT_AUTHORIZED_MESSAGE, type Owner } from '@/lib/auth/owner'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
+import { Route as RootRoute } from '@/routes/__root'
 import { Route } from '@/routes/index'
 
 vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
@@ -24,6 +25,8 @@ vi.mock('@/lib/items/server', () => ({
   listGallery: vi.fn(),
   listGalleryTags: vi.fn(),
 }))
+vi.mock('@/lib/auth/session', () => ({ getOwner: vi.fn() }))
+vi.mock('@/lib/site-config', () => ({ getContactUrl: vi.fn() }))
 window.scrollTo = () => undefined
 
 afterEach(cleanup)
@@ -39,6 +42,7 @@ async function openGallery(url: string, owner: Owner | null = null) {
       contactUrl: string | null
       owner: Owner | null
     }> => ({ contactUrl: null, owner }),
+    component: RootRoute.options.component,
   })
   const routeTree = root.addChildren([
     createRoute({ ...Route.options, getParentRoute: () => root, path: '/' }),
@@ -140,4 +144,39 @@ it('shows manual add only to the owner', async () => {
     name: 'Owner',
   })
   expect(screen.getByRole('button', { name: 'Add item' })).toBeTruthy()
+})
+
+it('renders the gallery for malformed search params and omits empty URL filters', async () => {
+  const { router } = await openGallery(
+    '/?q=%5B42%5D&tags=%5B%22%22%2C%22%20%20%22%2Cnull%5D&type=video&unknown=ignored',
+  )
+  expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
+  expect(router.state.location.search).toEqual({})
+  expect(listGallery).toHaveBeenLastCalledWith({ data: {} })
+  expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '   ' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+})
+
+it.each([
+  ['NOT_AUTHORIZED', NOT_AUTHORIZED_MESSAGE],
+  ['access_denied', 'Sign-in failed. Please try again.'],
+])(
+  'preserves the %s auth error without sending it as a gallery filter',
+  async (error, message) => {
+    const { router } = await openGallery(
+      `/?error=${error}&q=warm&unknown=ignored`,
+    )
+    expect(screen.getByRole('alert').textContent).toBe(message)
+    expect(router.state.location.search).toEqual({ error, q: 'warm' })
+    expect(listGallery).toHaveBeenLastCalledWith({ data: { q: 'warm' } })
+  },
+)
+
+it('drops malformed auth errors without breaking the gallery', async () => {
+  const { router } = await openGallery('/?error=%5B42%5D')
+  expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(router.state.location.search).toEqual({})
 })
