@@ -29,9 +29,16 @@ function Media({ item }: { item: GalleryItem }) {
       width={item.image.width ?? undefined}
     />
   )
-  // A link's cover opens the link, like the "Open link" button does.
+  // A link's cover opens the link, like the "Open link" button does. The
+  // link hugs the image: as a grid item it would otherwise stretch to the
+  // row's height and width, so a click beside a tall editor opened the link.
   return item.type === 'link' && item.sourceUrl ? (
-    <a href={item.sourceUrl} tabIndex={-1} {...EXTERNAL}>
+    <a
+      className='mx-auto block w-fit max-w-full self-start'
+      href={item.sourceUrl}
+      tabIndex={-1}
+      {...EXTERNAL}
+    >
       {image}
     </a>
   ) : (
