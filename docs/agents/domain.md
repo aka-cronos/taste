@@ -12,3 +12,9 @@
   `brutalism` are one tag.
 - **Credit**: who made an item and where the original lives: the credit
   author and URL, falling back to the source URL's hostname.
+- **Discard** / **delete**: two ways to remove an item. Discarding (inbox
+  only) means "not for my taste": the item and its image are deleted, and a
+  **discard entry** keeps its source URL and original image hash, so agents
+  cannot save it again. Deleting just removes the item and leaves no entry.
+  Adding a discarded source by hand saves it and removes the entry; the owner
+  can also **forget** an entry from the Discarded view.

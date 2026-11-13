@@ -1,8 +1,19 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  countDiscards,
+  DiscardedSourceError,
+  forgetDiscard,
+  listDiscards,
+} from '@/lib/items/discards'
 import { type IngestInput, ingestItem } from '@/lib/items/ingest'
 import { fetchLinkMetadata } from '@/lib/items/link-metadata'
-import { getPublishedItem, listPublishedItems } from '@/lib/items/repository'
+import { discardInboxItems } from '@/lib/items/manage'
+import {
+  countInboxItems,
+  getPublishedItem,
+  listPublishedItems,
+} from '@/lib/items/repository'
 import { createTestD1 } from '@/test/d1'
 
 vi.mock('@/lib/items/link-metadata', async importOriginal => ({
@@ -262,5 +273,74 @@ describe('ingestItem', () => {
       ),
     ).rejects.toThrow('Database unavailable')
     expect(bucket.delete).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ingesting discarded sources', () => {
+  const agent: Partial<IngestInput> = {
+    description: 'Saved by an agent',
+    origin: 'agent',
+    status: 'inbox',
+  }
+  const discard = async (input: Partial<IngestInput>) => {
+    const saved = await save({ ...agent, ...input })
+    await discardInboxItems({ bucket: bucket as unknown as R2Bucket, db }, [
+      saved.item.id,
+    ])
+    vi.clearAllMocks()
+  }
+
+  it('refuses an agent save of a discarded source URL before fetching it', async () => {
+    await discard({ sourceUrl: 'https://example.com/post', type: 'link' })
+    const attempt = save({
+      ...agent,
+      sourceUrl: 'https://example.com/post#again',
+      type: 'link',
+    })
+    await expect(attempt).rejects.toBeInstanceOf(DiscardedSourceError)
+    await expect(attempt).rejects.toThrow('The owner discarded this before')
+    expect(fetchLinkMetadata).not.toHaveBeenCalled()
+    expect(bucket.put).not.toHaveBeenCalled()
+    expect(await countInboxItems(db)).toBe(0)
+    expect(await countDiscards(db)).toBe(1)
+  })
+
+  it('refuses an agent save of a discarded image, even from another URL', async () => {
+    await discard({ image: png, type: 'image' })
+    await expect(
+      save({
+        ...agent,
+        image: png,
+        sourceUrl: 'https://cdn.example.com/copy.png',
+        type: 'image',
+      }),
+    ).rejects.toBeInstanceOf(DiscardedSourceError)
+    expect(bucket.put).not.toHaveBeenCalled()
+    expect(await countInboxItems(db)).toBe(0)
+  })
+
+  it('saves a discarded source the owner adds by hand and forgets the discard', async () => {
+    await discard({
+      image: png,
+      sourceUrl: 'https://example.com/a',
+      type: 'image',
+    })
+    const manual = await save({ image: png, type: 'image' })
+    expect(manual.duplicate).toBe(false)
+    expect(await getPublishedItem(db, manual.item.id)).not.toBeNull()
+    expect(await listDiscards(db)).toEqual([])
+  })
+
+  it('lets agents save a source again once its discard is forgotten', async () => {
+    await discard({ sourceUrl: 'https://example.com/post', type: 'link' })
+    const [entry] = await listDiscards(db)
+    await forgetDiscard(db, entry?.id ?? 0)
+    const again = await save({
+      ...agent,
+      sourceUrl: 'https://example.com/post',
+      type: 'link',
+    })
+    expect(again.duplicate).toBe(false)
+    expect(await countInboxItems(db)).toBe(1)
   })
 })

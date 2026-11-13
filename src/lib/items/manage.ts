@@ -1,3 +1,4 @@
+import { recordDiscardStatements } from '@/lib/items/discards'
 import type { EditItemInput, ItemEditorData } from '@/lib/items/edit-input'
 import type { ItemStatus } from '@/lib/items/model'
 
@@ -132,35 +133,64 @@ export async function publishInboxItems(db: D1Database, ids: string[]) {
   return result.meta.changes ?? 0
 }
 
+interface Storage {
+  bucket: Pick<R2Bucket, 'delete'>
+  db: D1Database
+}
+
 /**
- * Permanently deletes the given inbox items, their tag links, FTS rows and
- * stored images. Ids that are missing or published are skipped. Returns how
- * many items were discarded.
+ * Deletes the given inbox items, their tag links, FTS rows and stored images,
+ * and remembers each one's source URL and original image hash so agents do
+ * not save it again. Ids that are missing or published are skipped. Returns
+ * how many items were discarded.
  */
-export async function discardInboxItems(
-  { db, bucket }: { db: D1Database; bucket: Pick<R2Bucket, 'delete'> },
+export function discardInboxItems(storage: Storage, ids: string[]) {
+  return removeInboxItems(storage, ids, true)
+}
+
+/**
+ * Deletes the given inbox items like discarding does, but remembers nothing,
+ * so agents may save them again. Returns how many items were deleted.
+ */
+export function deleteInboxItems(storage: Storage, ids: string[]) {
+  return removeInboxItems(storage, ids, false)
+}
+
+async function removeInboxItems(
+  { db, bucket }: Storage,
   ids: string[],
+  remember: boolean,
 ) {
   if (ids.length === 0) {
     return 0
   }
   const { results } = await db
-    .prepare(`SELECT id, image_key AS imageKey FROM items
+    .prepare(`SELECT id, image_key AS imageKey, source_url AS sourceUrl,
+    content_hash AS contentHash, title, description FROM items
     WHERE status = 'inbox' AND id ${IN_IDS}`)
     .bind(JSON.stringify(ids))
-    .all<{ id: string; imageKey: string | null }>()
+    .all<{
+      contentHash: string | null
+      description: string
+      id: string
+      imageKey: string | null
+      sourceUrl: string | null
+      title: string | null
+    }>()
   if (results.length === 0) {
     return 0
   }
   const keys = results.flatMap(row => (row.imageKey ? [row.imageKey] : []))
-  // Keep the rows and their keys if R2 fails, so discarding can be retried.
+  // Keep the rows and their keys if R2 fails, so removal can be retried.
   if (keys.length > 0) {
     await bucket.delete(keys)
   }
   const found = results.map(row => row.id)
-  await db
-    .prepare(`DELETE FROM items WHERE id ${IN_IDS}`)
-    .bind(JSON.stringify(found))
-    .run()
+  await db.batch([
+    ...(remember ? recordDiscardStatements(db, results) : []),
+    db
+      .prepare(`DELETE FROM items WHERE id ${IN_IDS}`)
+      .bind(JSON.stringify(found)),
+  ])
   return found.length
 }

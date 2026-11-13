@@ -25,6 +25,7 @@ export async function renderWithRouter(ui: ReactNode) {
     }),
     createRoute({ getParentRoute: () => rootRoute, path: '/items/$id' }),
     createRoute({ getParentRoute: () => rootRoute, path: '/inbox' }),
+    createRoute({ getParentRoute: () => rootRoute, path: '/inbox/discarded' }),
   ])
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: ['/'] }),

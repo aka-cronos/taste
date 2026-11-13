@@ -36,3 +36,8 @@ export const inboxSelectionSchema = z.object({
     .transform(ids => [...new Set(ids)]),
 })
 export type InboxSelection = z.infer<typeof inboxSelectionSchema>
+
+/** A discard entry to forget. */
+export const discardIdSchema = z.object({
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+})

@@ -1,8 +1,13 @@
 import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { requireOwner } from '@/lib/auth/session'
-import { inboxSelectionSchema } from '@/lib/items/edit-input'
-import { discardInboxItems, publishInboxItems } from '@/lib/items/manage'
+import { forgetDiscard, listDiscards } from '@/lib/items/discards'
+import { discardIdSchema, inboxSelectionSchema } from '@/lib/items/edit-input'
+import {
+  deleteInboxItems,
+  discardInboxItems,
+  publishInboxItems,
+} from '@/lib/items/manage'
 import { countInboxItems, listInboxItems } from '@/lib/items/repository'
 
 /** The inbox items to review and how many wait in total. */
@@ -32,3 +37,22 @@ export const discardInbox = createServerFn({ method: 'POST' })
   .handler(({ data }) =>
     discardInboxItems({ bucket: env.BUCKET, db: env.DB }, data.ids),
   )
+
+/** Deletes inbox items without remembering them, unlike discarding. */
+export const deleteInbox = createServerFn({ method: 'POST' })
+  .middleware([requireOwner])
+  .validator((input: unknown) => inboxSelectionSchema.parse(input))
+  .handler(({ data }) =>
+    deleteInboxItems({ bucket: env.BUCKET, db: env.DB }, data.ids),
+  )
+
+/** What the owner discarded, newest first. */
+export const getDiscarded = createServerFn({ method: 'GET' })
+  .middleware([requireOwner])
+  .handler(() => listDiscards(env.DB))
+
+/** Forgets a discard entry, so agents can save that source again. */
+export const forgetDiscarded = createServerFn({ method: 'POST' })
+  .middleware([requireOwner])
+  .validator((input: unknown) => discardIdSchema.parse(input))
+  .handler(({ data }) => forgetDiscard(env.DB, data.id))
