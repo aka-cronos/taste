@@ -5,10 +5,7 @@ import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import type { Owner } from '@/lib/auth/owner'
 import { useOwner } from '@/lib/auth/use-owner'
-import type { ItemEditorData } from '@/lib/items/edit-input'
-import { getOwnerItem } from '@/lib/items/manage-server'
-import type { GalleryItem } from '@/lib/items/model'
-import { getGalleryItem } from '@/lib/items/server'
+import { type ItemView, loadItemView } from '@/lib/items/item-view'
 
 async function loadItem({
   params,
@@ -16,23 +13,12 @@ async function loadItem({
 }: {
   params: { id: string }
   context: { owner: Owner | null }
-}): Promise<{
-  item: GalleryItem
-  editor: ItemEditorData | null
-  tags: string[]
-}> {
-  const result = context.owner
-    ? await getOwnerItem({ data: { id: params.id } })
-    : {
-        editor: null,
-        item: await getGalleryItem({ data: { id: params.id } }),
-        tags: [],
-      }
-  const { item } = result
-  if (!item) {
+}): Promise<ItemView> {
+  const view = await loadItemView(params.id, Boolean(context.owner))
+  if (!view) {
     throw notFound()
   }
-  return { ...result, item }
+  return view
 }
 
 export const Route = createFileRoute('/items/$id')({
