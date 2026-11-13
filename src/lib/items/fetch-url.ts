@@ -117,7 +117,11 @@ export async function fetchPublicUrl(value: string, limit: number) {
   })
   if (!response.ok) {
     await response.body?.cancel()
-    throw new Error('The URL could not be fetched. Redirects are not followed.')
+    throw new Error(
+      response.status >= 300 && response.status < 400
+        ? `The URL returned a redirect (HTTP ${response.status}). Redirects are not followed.`
+        : `The URL could not be fetched (HTTP ${response.status}).`,
+    )
   }
   const bytes = await readLimited(response, limit)
   return {

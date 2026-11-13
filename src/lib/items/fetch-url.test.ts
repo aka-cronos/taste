@@ -91,3 +91,16 @@ it('allows public IPv6 while blocking transition and documentation ranges', () =
   expect(isPublicAddress('2001:db8::1')).toBe(false)
   expect(isPublicAddress('2002:7f00:1::')).toBe(false)
 })
+
+it.each([403, 404, 429, 500])(
+  'reports HTTP %s without claiming a redirect',
+  async status => {
+    const response = new Response('Failed', { status })
+    fetcher.mockResolvedValue(response)
+    await expect(fetchPublicUrl('https://example.com/', 100)).rejects.toThrow(
+      `The URL could not be fetched (HTTP ${status}).`,
+    )
+    expect(response.body?.locked).toBe(false)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  },
+)

@@ -89,6 +89,28 @@ describe('ingestItem', () => {
     })
   })
 
+  it.each([
+    'https://www.youtube.com/watch?v=kPr2ZfWJlbE',
+    'https://youtu.be/kPr2ZfWJlbE',
+  ])(
+    'publishes a YouTube link with tags when metadata is unavailable: %s',
+    async sourceUrl => {
+      vi.mocked(fetchLinkMetadata).mockResolvedValue({
+        description: '',
+        image: undefined,
+        title: null,
+      })
+      const result = await save({ sourceUrl, tags: ['music'], type: 'link' })
+      expect(await getPublishedItem(db, result.item.id)).toMatchObject({
+        sourceUrl,
+        tags: ['music'],
+        title: null,
+        type: 'link',
+      })
+      expect(bucket.put).not.toHaveBeenCalled()
+    },
+  )
+
   it('keeps distinct links with the same cover and their tags separate', async () => {
     const first = await save({
       sourceUrl: 'https://example.com/one',
