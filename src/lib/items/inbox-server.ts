@@ -1,7 +1,11 @@
 import { env } from 'cloudflare:workers'
 import { createServerFn } from '@tanstack/react-start'
 import { requireOwner } from '@/lib/auth/session'
-import { forgetDiscard, listDiscards } from '@/lib/items/discards'
+import {
+  countDiscards,
+  forgetDiscard,
+  listDiscards,
+} from '@/lib/items/discards'
 import { discardIdSchema, inboxSelectionSchema } from '@/lib/items/edit-input'
 import {
   deleteInboxItems,
@@ -46,10 +50,16 @@ export const deleteInbox = createServerFn({ method: 'POST' })
     deleteInboxItems({ bucket: env.BUCKET, db: env.DB }, data.ids),
   )
 
-/** What the owner discarded, newest first. */
+/** What the owner discarded, newest first, and how many entries in total. */
 export const getDiscarded = createServerFn({ method: 'GET' })
   .middleware([requireOwner])
-  .handler(() => listDiscards(env.DB))
+  .handler(async () => {
+    const [entries, count] = await Promise.all([
+      listDiscards(env.DB),
+      countDiscards(env.DB),
+    ])
+    return { count, entries }
+  })
 
 /** Forgets a discard entry, so agents can save that source again. */
 export const forgetDiscarded = createServerFn({ method: 'POST' })

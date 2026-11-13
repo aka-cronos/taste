@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Owner } from '@/lib/auth/owner'
 import { getDiscarded, getInbox } from '@/lib/items/inbox-server'
@@ -28,15 +28,18 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.mocked(getInbox).mockReset()
   vi.mocked(getDiscarded).mockReset()
-  vi.mocked(getDiscarded).mockResolvedValue([
-    {
-      discardedAt: 1,
-      id: 1,
-      sourceHost: 'example.com',
-      sourceUrl: 'https://example.com/post',
-      title: 'Discarded post',
-    },
-  ])
+  vi.mocked(getDiscarded).mockResolvedValue({
+    count: 1,
+    entries: [
+      {
+        discardedAt: 1,
+        id: 1,
+        sourceHost: 'example.com',
+        sourceUrl: 'https://example.com/post',
+        title: 'Discarded post',
+      },
+    ],
+  })
   vi.mocked(getInbox).mockResolvedValue({
     count: 1,
     items: [
@@ -111,4 +114,30 @@ it('hides what was discarded from visitors without asking the server', async () 
   expect(screen.getByRole('heading', { name: 'Page not found' })).toBeTruthy()
   expect(screen.queryByText('Discarded post')).toBeNull()
   expect(getDiscarded).not.toHaveBeenCalled()
+})
+
+/**
+ * The header's element tree and classes, without its text. Tab links are left
+ * out because their look follows which one is active.
+ */
+function headerShape(element: Element): string {
+  const children =
+    element.tagName === 'NAV' ? [] : Array.from(element.children, headerShape)
+  return `${element.tagName}.${element.className}(${children.join(',')})`
+}
+
+function activeTab() {
+  return within(screen.getByRole('navigation', { name: 'Inbox views' }))
+    .getAllByRole('link')
+    .find(link => link.getAttribute('aria-current') === 'page')?.textContent
+}
+
+it('renders both tabs through the same header', async () => {
+  await openInbox(owner)
+  const inbox = headerShape(screen.getByRole('banner'))
+  expect(activeTab()).toBe('Inbox')
+  cleanup()
+  await openInbox(owner, '/inbox/discarded')
+  expect(headerShape(screen.getByRole('banner'))).toBe(inbox)
+  expect(activeTab()).toBe('Discarded')
 })

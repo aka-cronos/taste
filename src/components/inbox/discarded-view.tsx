@@ -1,12 +1,14 @@
 import { useRouter } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { InboxNav } from '@/components/inbox/inbox-nav'
+import { ReviewEmpty, ReviewLayout } from '@/components/inbox/review-layout'
 import { Button } from '@/components/ui/button'
 import type { DiscardEntry } from '@/lib/items/discards'
 import { forgetDiscarded } from '@/lib/items/inbox-server'
 
 interface DiscardedViewProps {
+  /** Every entry, which can exceed the capped list. */
+  count: number
   entries: DiscardEntry[]
   /** Overridable for tests. */
   onForget?: (id: number) => Promise<unknown>
@@ -18,12 +20,17 @@ const dateFormat = new Intl.DateTimeFormat('en', {
   timeZone: 'UTC',
 })
 
+function plural(count: number) {
+  return count === 1 ? '1 item' : `${count} items`
+}
+
 export function discardLabel(entry: DiscardEntry) {
   return entry.title || entry.sourceHost || 'Untitled image'
 }
 
 /** What the owner discarded from the inbox, and a way to forget it. */
 export function DiscardedView({
+  count,
   entries,
   onForget = id => forgetDiscarded({ data: { id } }),
 }: DiscardedViewProps) {
@@ -52,19 +59,16 @@ export function DiscardedView({
   }
 
   return (
-    <main className='mx-auto max-w-4xl px-4 py-6'>
-      <div className='mb-4 flex flex-wrap items-start justify-between gap-3'>
-        <div className='flex flex-col gap-1'>
-          <h1 className='font-heading text-2xl font-semibold tracking-tight'>
-            Discarded
-          </h1>
-          <p className='text-muted-foreground text-sm'>
-            Agents won&apos;t save these again. Forget one to allow it.
-          </p>
-        </div>
-        <InboxNav current='discarded' />
-      </div>
-
+    <ReviewLayout
+      current='discarded'
+      description={
+        <>Agents won&apos;t save these again. Forget one to allow it.</>
+      }
+      status={
+        count === 0 ? 'Nothing to forget.' : `${plural(count)} remembered.`
+      }
+      title='Discarded'
+    >
       {error ? (
         <p className='text-destructive mb-3 text-sm' role='alert'>
           {error}
@@ -72,9 +76,9 @@ export function DiscardedView({
       ) : null}
 
       {entries.length === 0 ? (
-        <p className='text-muted-foreground py-24 text-center'>
-          Nothing discarded. What you discard from the inbox shows up here.
-        </p>
+        <ReviewEmpty title='Nothing discarded.'>
+          What you discard from the inbox shows up here.
+        </ReviewEmpty>
       ) : (
         <ul aria-label='Discarded items' className='flex flex-col divide-y'>
           {entries.map(entry => {
@@ -117,6 +121,6 @@ export function DiscardedView({
           })}
         </ul>
       )}
-    </main>
+    </ReviewLayout>
   )
 }
