@@ -1,10 +1,12 @@
+import type { QueryClient } from '@tanstack/react-query'
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import {
   act,
   cleanup,
@@ -16,6 +18,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { NOT_AUTHORIZED_MESSAGE, type Owner } from '@/lib/auth/owner'
 import { listGallery, listGalleryTags } from '@/lib/items/server'
+import { bootstrapKey, createQueryClient } from '@/lib/query-client'
 import { Route as RootRoute } from '@/routes/__root'
 import { Route } from '@/routes/index'
 
@@ -45,21 +48,28 @@ beforeEach(() => {
 })
 
 async function openGallery(url: string, owner: Owner | null = null) {
-  const root = createRootRoute({
-    beforeLoad: async (): Promise<{
-      contactUrl: string | null
-      inboxCount: number
-      owner: Owner | null
-    }> => ({ contactUrl: null, inboxCount: 0, owner }),
+  const queryClient = createQueryClient()
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    beforeLoad: (async () => {
+      const data = await (async (): Promise<{
+        contactUrl: string | null
+        inboxCount: number
+        owner: Owner | null
+      }> => ({ contactUrl: null, inboxCount: 0, owner }))()
+      queryClient.setQueryData(bootstrapKey, data)
+      return data
+    }) as typeof RootRoute.options.beforeLoad,
     component: RootRoute.options.component,
   })
   const routeTree = root.addChildren([
     createRoute({ ...Route.options, getParentRoute: () => root, path: '/' }),
   ])
   const router = createRouter({
+    context: { queryClient },
     history: createMemoryHistory({ initialEntries: [url] }),
     routeTree,
   })
+  setupRouterSsrQueryIntegration({ queryClient, router })
   await act(() => router.load())
   const view = render(<RouterProvider router={router as never} />)
   return { router, view }
@@ -76,15 +86,19 @@ it('restores a shared filtered URL, including after a reload', async () => {
   expect(
     screen.getByRole('button', { name: 'warm' }).getAttribute('aria-pressed'),
   ).toBe('true')
-  expect(listGallery).toHaveBeenLastCalledWith({
-    data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
-  })
+  expect(listGallery).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
+    }),
+  )
   expect(screen.getByText('No items match these filters.')).toBeTruthy()
   view.unmount()
   await openGallery(url)
-  expect(listGallery).toHaveBeenLastCalledWith({
-    data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
-  })
+  expect(listGallery).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      data: { q: 'warm', tags: ['poster', 'warm'], type: 'image' },
+    }),
+  )
 })
 
 it('writes combined filters to the URL, supports back, and clears the view', async () => {
@@ -131,16 +145,20 @@ it('keeps filters when paging and replaces accumulated items when filters change
   await openGallery('/?q=warm&type=note')
   fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
   expect(await screen.findByRole('link', { name: 'second' })).toBeTruthy()
-  expect(listGallery).toHaveBeenLastCalledWith({
-    data: { cursor: '1.first', q: 'warm', type: 'note' },
-  })
+  expect(listGallery).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      data: { cursor: '1.first', q: 'warm', type: 'note' },
+    }),
+  )
   fireEvent.click(screen.getByRole('button', { name: 'poster' }))
   expect(await screen.findByRole('link', { name: 'filtered' })).toBeTruthy()
   expect(screen.queryByRole('link', { name: 'first' })).toBeNull()
   expect(screen.queryByRole('link', { name: 'second' })).toBeNull()
-  expect(listGallery).toHaveBeenLastCalledWith({
-    data: { q: 'warm', tags: ['poster'], type: 'note' },
-  })
+  expect(listGallery).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      data: { q: 'warm', tags: ['poster'], type: 'note' },
+    }),
+  )
 })
 
 it('shows manual add only to the owner', async () => {
@@ -161,7 +179,9 @@ it('renders the gallery for malformed search params and omits empty URL filters'
   )
   expect(await screen.findByText('Nothing here yet.')).toBeTruthy()
   expect(router.state.location.search).toEqual({})
-  expect(listGallery).toHaveBeenLastCalledWith({ data: {} })
+  expect(listGallery).toHaveBeenLastCalledWith(
+    expect.objectContaining({ data: {} }),
+  )
   expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('')
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: '   ' } })
   fireEvent.click(screen.getByRole('button', { name: 'Search' }))
@@ -179,7 +199,9 @@ it.each([
     )
     expect(screen.getByRole('alert').textContent).toBe(message)
     expect(router.state.location.search).toEqual({ error, q: 'warm' })
-    expect(listGallery).toHaveBeenLastCalledWith({ data: { q: 'warm' } })
+    expect(listGallery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { q: 'warm' } }),
+    )
   },
 )
 

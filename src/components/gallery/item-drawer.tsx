@@ -1,58 +1,11 @@
-import { useRouter } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { GalleryDrawer } from '@/components/gallery/gallery-drawer'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import { useOwner } from '@/lib/auth/use-owner'
-import { type ItemView, loadItemView } from '@/lib/items/item-view'
 import { itemLabel } from '@/lib/items/model'
-
-interface Loaded {
-  failed: boolean
-  id: string
-  view: ItemView | null
-}
-
-/**
- * Loads the item open in the drawer, and loads it again whenever the router
- * is invalidated (for example after saving edits) without changing location.
- */
-function useItemView(id: string | undefined) {
-  const router = useRouter()
-  const signedIn = Boolean(useOwner())
-  const [loaded, setLoaded] = useState<Loaded>()
-  useEffect(() => {
-    if (!id) {
-      return
-    }
-    let active = true
-    let latest = 0
-    const load = () => {
-      latest += 1
-      const request = latest
-      const settle = (next: Omit<Loaded, 'id'>) => {
-        if (active && request === latest) {
-          setLoaded({ ...next, id })
-        }
-      }
-      loadItemView(id, signedIn).then(
-        view => settle({ failed: false, view }),
-        () => settle({ failed: true, view: null }),
-      )
-    }
-    load()
-    const unsubscribe = router.subscribe('onResolved', event => {
-      if (!event.hrefChanged) {
-        load()
-      }
-    })
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [id, router, signedIn])
-  return loaded
-}
+import { itemQuery } from '@/lib/queries'
 
 function DrawerMessage({ children }: { children: string }) {
   return <p className='text-muted-foreground py-8 text-center'>{children}</p>
@@ -71,16 +24,22 @@ export function ItemDrawer({
   onClose: (options?: { ignoreBlocker?: boolean }) => Promise<unknown>
 }) {
   const owner = useOwner()
-  const loaded = useItemView(id)
-  // While closing, keep showing the last item until the drawer is gone.
-  const shown = id === undefined || loaded?.id === id ? loaded : undefined
+  const [lastId, setLastId] = useState(id)
+  if (id && lastId !== id) {
+    setLastId(id)
+  }
+  const { data: view, isError } = useQuery({
+    ...itemQuery(id ?? lastId ?? '', owner?.email),
+    enabled: Boolean(id),
+    retryOnMount: false,
+  })
   let title = 'Loading…'
   let body = <DrawerMessage>Loading…</DrawerMessage>
-  if (shown?.failed) {
+  if (isError) {
     title = 'Could not load the item'
     body = <DrawerMessage>Please try again.</DrawerMessage>
-  } else if (shown?.view) {
-    const { editor, item, published, tags } = shown.view
+  } else if (view) {
+    const { editor, item, published, tags } = view
     title = itemLabel(item)
     body = (
       <ItemDetail
@@ -100,7 +59,7 @@ export function ItemDrawer({
         variant='drawer'
       />
     )
-  } else if (shown) {
+  } else if (view === null) {
     title = 'Item not found'
     body = <DrawerMessage>This item is no longer available.</DrawerMessage>
   }

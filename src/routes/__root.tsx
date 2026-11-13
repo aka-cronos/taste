@@ -1,5 +1,6 @@
+import { type QueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import {
-  createRootRoute,
+  createRootRouteWithContext,
   HeadContent,
   Outlet,
   Scripts,
@@ -13,30 +14,30 @@ import { SiteHeader } from '@/components/site-header'
 import { Toaster } from '@/components/ui/sonner'
 import { authClient } from '@/lib/auth/client'
 import { NOT_AUTHORIZED, NOT_AUTHORIZED_MESSAGE } from '@/lib/auth/owner'
-import { getOwner } from '@/lib/auth/session'
-import { getInboxCount } from '@/lib/items/inbox-server'
-import { getContactUrl } from '@/lib/site-config'
+import { bootstrapQuery } from '@/lib/queries'
+import { resetSession } from '@/lib/query-client'
 import { themeInitScript } from '@/lib/theme'
 import appCss from '@/styles.css?url'
 
-export const Route = createRootRoute({
-  beforeLoad: async () => {
-    const [owner, contactUrl] = await Promise.all([getOwner(), getContactUrl()])
-    const inboxCount = owner ? await getInboxCount() : 0
-    return { contactUrl, inboxCount, owner }
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+  {
+    beforeLoad: async ({ context }) => {
+      await context.queryClient.ensureQueryData(bootstrapQuery())
+      return context.queryClient.fetchQuery(bootstrapQuery())
+    },
+    component: RootLayout,
+    head: () => ({
+      links: [{ href: appCss, rel: 'stylesheet' }],
+      meta: [
+        { charSet: 'utf-8' },
+        { content: 'width=device-width, initial-scale=1', name: 'viewport' },
+        { title: 'Taste' },
+        { content: 'A personal reference gallery.', name: 'description' },
+      ],
+    }),
+    shellComponent: RootDocument,
   },
-  component: RootLayout,
-  head: () => ({
-    links: [{ href: appCss, rel: 'stylesheet' }],
-    meta: [
-      { charSet: 'utf-8' },
-      { content: 'width=device-width, initial-scale=1', name: 'viewport' },
-      { title: 'Taste' },
-      { content: 'A personal reference gallery.', name: 'description' },
-    ],
-  }),
-  shellComponent: RootDocument,
-})
+)
 
 function authErrorMessage(error: unknown) {
   if (!error) {
@@ -49,7 +50,10 @@ function authErrorMessage(error: unknown) {
 
 function RootLayout() {
   const router = useRouter()
-  const { owner, inboxCount } = useRouteContext({ from: '__root__' })
+  const { queryClient } = useRouteContext({ from: '__root__' })
+  const {
+    data: { owner, inboxCount, contactUrl },
+  } = useSuspenseQuery(bootstrapQuery())
   const authError = useLocation({
     select: location =>
       authErrorMessage((location.search as { error?: unknown }).error),
@@ -68,13 +72,20 @@ function RootLayout() {
           })
         }
         onSignOut={async () => {
-          await authClient.signOut()
-          await router.invalidate()
+          resetSession(queryClient)
+          router.clearCache()
+          router.invalidate()
+          try {
+            await authClient.signOut()
+          } finally {
+            await queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+            await router.invalidate()
+          }
         }}
         owner={owner}
       />
       <Outlet />
-      <SiteFooter contactUrl={Route.useRouteContext().contactUrl} />
+      <SiteFooter contactUrl={contactUrl} />
     </>
   )
 }

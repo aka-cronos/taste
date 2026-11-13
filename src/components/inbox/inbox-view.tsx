@@ -22,6 +22,7 @@ import {
   publishInbox,
 } from '@/lib/items/inbox-server'
 import { hostnameOf, type InboxItem, itemLabel } from '@/lib/items/model'
+import { handleSessionError, refreshQueries } from '@/lib/refresh-queries'
 
 interface InboxViewProps {
   /** How many items wait in the inbox, which can exceed those listed. */
@@ -180,8 +181,9 @@ export function InboxView({
         }
         return next
       })
-      await router.invalidate()
-    } catch {
+      await refreshQueries(router)
+    } catch (caughtError) {
+      handleSessionError(router, caughtError)
       setError(FAILED[action])
     } finally {
       pending.current = false

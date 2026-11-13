@@ -1,12 +1,14 @@
+import type { QueryClient } from '@tanstack/react-query'
 import {
   createBrowserHistory,
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   type RouterHistory,
   RouterProvider,
 } from '@tanstack/react-router'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import {
   act,
   cleanup,
@@ -32,6 +34,7 @@ import {
   listGallery,
   listGalleryTags,
 } from '@/lib/items/server'
+import { bootstrapKey, createQueryClient } from '@/lib/query-client'
 import { Route as RootRoute } from '@/routes/__root'
 import { Route as GalleryRoute } from '@/routes/index'
 import { Route as ItemRoute } from '@/routes/items/$id'
@@ -153,17 +156,22 @@ async function openApp({
   signedIn?: boolean
   url?: string
 }) {
-  const root = createRootRoute({
-    beforeLoad: (): Promise<{
-      contactUrl: string | null
-      inboxCount: number
-      owner: Owner | null
-    }> =>
-      Promise.resolve({
-        contactUrl: null,
-        inboxCount: 0,
-        owner: signedIn ? owner : null,
-      }),
+  const queryClient = createQueryClient()
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    beforeLoad: (async () => {
+      const data = await ((): Promise<{
+        contactUrl: string | null
+        inboxCount: number
+        owner: Owner | null
+      }> =>
+        Promise.resolve({
+          contactUrl: null,
+          inboxCount: 0,
+          owner: signedIn ? owner : null,
+        }))()
+      queryClient.setQueryData(bootstrapKey, data)
+      return data
+    }) as typeof RootRoute.options.beforeLoad,
     component: RootRoute.options.component,
   })
   const routeTree = root.addChildren([
@@ -179,9 +187,11 @@ async function openApp({
     }),
   ])
   const router = createRouter({
+    context: { queryClient },
     history: history ?? createMemoryHistory({ initialEntries: [url] }),
     routeTree,
   })
+  setupRouterSsrQueryIntegration({ queryClient, router })
   await act(() => router.load())
   const view = render(<RouterProvider router={router as never} />)
   return { router, view }

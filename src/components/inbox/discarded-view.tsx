@@ -5,6 +5,7 @@ import { ReviewEmpty, ReviewLayout } from '@/components/inbox/review-layout'
 import { Button } from '@/components/ui/button'
 import type { DiscardEntry } from '@/lib/items/discards'
 import { forgetDiscarded } from '@/lib/items/inbox-server'
+import { handleSessionError, refreshQueries } from '@/lib/refresh-queries'
 
 interface DiscardedViewProps {
   /** Every entry, which can exceed the capped list. */
@@ -49,8 +50,9 @@ export function DiscardedView({
     try {
       await onForget(entry.id)
       toast.success('Forgotten. Agents can save it again.')
-      await router.invalidate()
-    } catch {
+      await refreshQueries(router)
+    } catch (caughtError) {
+      handleSessionError(router, caughtError)
       setError('Could not forget it. Please try again.')
     } finally {
       pending.current = false

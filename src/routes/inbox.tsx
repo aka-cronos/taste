@@ -1,6 +1,8 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { InboxView } from '@/components/inbox/inbox-view'
-import { getInbox } from '@/lib/items/inbox-server'
+import { useOwner } from '@/lib/auth/use-owner'
+import { inboxQuery } from '@/lib/queries'
 
 export const Route = createFileRoute('/inbox')({
   // Only the owner has an inbox; everyone else gets a plain not-found page.
@@ -11,12 +13,25 @@ export const Route = createFileRoute('/inbox')({
   },
   component: InboxPage,
   head: () => ({ meta: [{ title: 'Inbox · Taste' }] }),
-  loader: () => getInbox(),
+  loader: async ({ context }) => {
+    if (!context.owner) {
+      throw notFound()
+    }
+    await context.queryClient.ensureQueryData({
+      ...inboxQuery(context.owner.email),
+      revalidateIfStale: true,
+    })
+  },
   notFoundComponent: InboxNotFound,
 })
 
 function InboxPage() {
-  const { count, items } = Route.useLoaderData()
+  const owner = useOwner()
+  return owner ? <InboxData email={owner.email} /> : <InboxNotFound />
+}
+
+function InboxData({ email }: { email: string }) {
+  const { count, items } = useSuspenseQuery(inboxQuery(email)).data
   return <InboxView count={count} items={items} />
 }
 

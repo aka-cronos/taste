@@ -1,10 +1,12 @@
+import type { QueryClient } from '@tanstack/react-query'
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import {
   act,
   cleanup,
@@ -25,6 +27,8 @@ import {
 } from '@/lib/items/manage-server'
 import type { GalleryItem } from '@/lib/items/model'
 import { getGalleryItem } from '@/lib/items/server'
+import { bootstrapKey, createQueryClient } from '@/lib/query-client'
+import type { Route as RootRoute } from '@/routes/__root'
 import { Route } from '@/routes/items/$id'
 
 vi.mock('@/lib/items/manage-server', () => ({
@@ -76,17 +80,22 @@ beforeEach(() => {
 afterEach(cleanup)
 window.scrollTo = () => undefined
 async function open(signedIn = true, url = '/items/item') {
-  const root = createRootRoute({
-    beforeLoad: (): Promise<{
-      contactUrl: string | null
-      inboxCount: number
-      owner: Owner | null
-    }> =>
-      Promise.resolve({
-        contactUrl: null,
-        inboxCount: 0,
-        owner: signedIn ? owner : null,
-      }),
+  const queryClient = createQueryClient()
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    beforeLoad: (async () => {
+      const data = await ((): Promise<{
+        contactUrl: string | null
+        inboxCount: number
+        owner: Owner | null
+      }> =>
+        Promise.resolve({
+          contactUrl: null,
+          inboxCount: 0,
+          owner: signedIn ? owner : null,
+        }))()
+      queryClient.setQueryData(bootstrapKey, data)
+      return data
+    }) as typeof RootRoute.options.beforeLoad,
   })
   const routeTree = root.addChildren([
     createRoute({
@@ -101,9 +110,11 @@ async function open(signedIn = true, url = '/items/item') {
     }),
   ])
   const router = createRouter({
+    context: { queryClient },
     history: createMemoryHistory({ initialEntries: [url] }),
     routeTree,
   })
+  setupRouterSsrQueryIntegration({ queryClient, router })
   await act(() => router.load())
   render(<RouterProvider router={router as never} />)
   return router

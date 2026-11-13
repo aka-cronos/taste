@@ -1,25 +1,25 @@
+import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { useState } from 'react'
 import { ItemCard } from '@/components/gallery/item-card'
 import { Button } from '@/components/ui/button'
-import type { GalleryPage } from '@/lib/items/model'
+import type { GalleryFilters } from '@/lib/items/search'
+import { galleryQuery } from '@/lib/queries'
 
 interface GalleryGridProps {
   filtered?: boolean
-  initialPage: GalleryPage
-  loadPage: (cursor: string) => Promise<GalleryPage>
+  filters: GalleryFilters
 }
 
 /** Masonry grid of gallery items, with a button to load the next page. */
-export function GalleryGrid({
-  filtered = false,
-  initialPage,
-  loadPage,
-}: GalleryGridProps) {
-  const [items, setItems] = useState(initialPage.items)
-  const [cursor, setCursor] = useState(initialPage.nextCursor)
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
+export function GalleryGrid({ filtered = false, filters }: GalleryGridProps) {
+  const {
+    data,
+    hasNextPage: cursor,
+    isFetchingNextPage: loading,
+    isFetchNextPageError: failed,
+    fetchNextPage,
+  } = useSuspenseInfiniteQuery(galleryQuery(filters))
+  const items = data.pages.flatMap(page => page.items)
 
   if (items.length === 0) {
     return (
@@ -27,23 +27,6 @@ export function GalleryGrid({
         {filtered ? 'No items match these filters.' : 'Nothing here yet.'}
       </p>
     )
-  }
-
-  const loadMore = async () => {
-    if (!cursor) {
-      return
-    }
-    setLoading(true)
-    setFailed(false)
-    try {
-      const page = await loadPage(cursor)
-      setItems(current => [...current, ...page.items])
-      setCursor(page.nextCursor)
-    } catch {
-      setFailed(true)
-    } finally {
-      setLoading(false)
-    }
   }
 
   return (
@@ -63,7 +46,11 @@ export function GalleryGrid({
       </div>
       {cursor ? (
         <div className='flex flex-col items-center gap-2 py-8'>
-          <Button disabled={loading} onClick={loadMore} variant='outline'>
+          <Button
+            disabled={loading}
+            onClick={() => fetchNextPage()}
+            variant='outline'
+          >
             {loading ? 'Loading…' : 'Show more'}
           </Button>
           {failed ? (
