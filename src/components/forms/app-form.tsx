@@ -27,6 +27,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { normalizeTagName } from '@/lib/items/model'
 
 const { fieldContext, formContext, useFieldContext, useFormContext } =
@@ -166,6 +167,44 @@ function SelectField({
     </Frame>
   )
 }
+function OptionGroupField({
+  label,
+  options,
+  onValueChange,
+  disabled = false,
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  onValueChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const control = useFieldControl<string>()
+  return (
+    <Frame control={control} label={label}>
+      <ToggleGroup
+        {...accessibility(control)}
+        aria-label={label}
+        disabled={disabled}
+        onBlur={control.field.handleBlur}
+        onValueChange={values => {
+          const [value] = values
+          if (value) {
+            control.change(value)
+            onValueChange(value)
+          }
+        }}
+        value={[control.field.state.value]}
+        variant='outline'
+      >
+        {options.map(option => (
+          <ToggleGroupItem key={option.value} value={option.value}>
+            {option.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </Frame>
+  )
+}
 function FileField({
   label,
   accept,
@@ -241,8 +280,15 @@ function TagsField({
   suggestions: string[]
   disabled?: boolean
 }) {
-  const control = useFieldControl<string[]>()
-  const tags = control.field.state.value
+  const control = useFieldControl<string[] | string>()
+  const { value: fieldValue } = control.field.state
+  const tags =
+    typeof fieldValue === 'string'
+      ? fieldValue
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(Boolean)
+      : fieldValue
   const anchor = useComboboxAnchor()
   const [query, setQuery] = useState('')
   const newTag = normalizeTagName(query)
@@ -257,8 +303,10 @@ function TagsField({
         items={items}
         multiple
         onInputValueChange={setQuery}
-        onValueChange={value => {
-          control.change(value)
+        onValueChange={nextTags => {
+          control.change(
+            typeof fieldValue === 'string' ? nextTags.join(', ') : nextTags,
+          )
           setQuery('')
         }}
         value={tags}
@@ -310,6 +358,7 @@ function SubmitButton({ children, ...props }: ComponentProps<typeof Button>) {
 export const { useAppForm } = createFormHook({
   fieldComponents: {
     FileField,
+    OptionGroupField,
     SelectField,
     TagsField,
     TextareaField,

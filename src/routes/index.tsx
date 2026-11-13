@@ -28,7 +28,9 @@ function GalleryPage() {
   return (
     <main className='mx-auto max-w-6xl px-4 py-6'>
       <h1 className='sr-only'>Taste</h1>
-      {owner ? <AddItem onSaved={() => router.invalidate()} /> : null}
+      {owner ? (
+        <AddItem onSaved={() => router.invalidate()} tags={tags} />
+      ) : null}
       <GalleryFilters
         filters={filters}
         onChange={search => navigate({ search })}
