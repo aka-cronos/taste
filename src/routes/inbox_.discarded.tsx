@@ -16,8 +16,8 @@ export const Route = createFileRoute('/inbox_/discarded')({
 })
 
 function DiscardedPage() {
-  const entries = Route.useLoaderData()
-  return <DiscardedView entries={entries} />
+  const { count, entries } = Route.useLoaderData()
+  return <DiscardedView count={count} entries={entries} />
 }
 
 function DiscardedNotFound() {

@@ -28,15 +28,18 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.mocked(getInbox).mockReset()
   vi.mocked(getDiscarded).mockReset()
-  vi.mocked(getDiscarded).mockResolvedValue([
-    {
-      discardedAt: 1,
-      id: 1,
-      sourceHost: 'example.com',
-      sourceUrl: 'https://example.com/post',
-      title: 'Discarded post',
-    },
-  ])
+  vi.mocked(getDiscarded).mockResolvedValue({
+    count: 1,
+    entries: [
+      {
+        discardedAt: 1,
+        id: 1,
+        sourceHost: 'example.com',
+        sourceUrl: 'https://example.com/post',
+        title: 'Discarded post',
+      },
+    ],
+  })
   vi.mocked(getInbox).mockResolvedValue({
     count: 1,
     items: [

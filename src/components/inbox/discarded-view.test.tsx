@@ -35,7 +35,11 @@ const entries: DiscardEntry[] = [
 
 async function open(onForget = vi.fn(() => Promise.resolve())) {
   await renderWithRouter(
-    <DiscardedView entries={entries} onForget={onForget} />,
+    <DiscardedView
+      count={entries.length}
+      entries={entries}
+      onForget={onForget}
+    />,
   )
   return onForget
 }
@@ -82,8 +86,13 @@ it('counts what is remembered in the shared header', async () => {
   expect(header.getByText('2 items remembered.')).toBeTruthy()
 })
 
+it('counts every entry, not only the listed ones', async () => {
+  await renderWithRouter(<DiscardedView count={250} entries={entries} />)
+  expect(screen.getByText('250 items remembered.')).toBeTruthy()
+})
+
 it('explains an empty list', async () => {
-  await renderWithRouter(<DiscardedView entries={[]} />)
+  await renderWithRouter(<DiscardedView count={0} entries={[]} />)
   expect(screen.getByText(NOTHING_DISCARDED)).toBeTruthy()
   expect(
     screen.getByText('What you discard from the inbox shows up here.'),

@@ -7,6 +7,8 @@ import type { DiscardEntry } from '@/lib/items/discards'
 import { forgetDiscarded } from '@/lib/items/inbox-server'
 
 interface DiscardedViewProps {
+  /** Every entry, which can exceed the capped list. */
+  count: number
   entries: DiscardEntry[]
   /** Overridable for tests. */
   onForget?: (id: number) => Promise<unknown>
@@ -28,6 +30,7 @@ export function discardLabel(entry: DiscardEntry) {
 
 /** What the owner discarded from the inbox, and a way to forget it. */
 export function DiscardedView({
+  count,
   entries,
   onForget = id => forgetDiscarded({ data: { id } }),
 }: DiscardedViewProps) {
@@ -62,9 +65,7 @@ export function DiscardedView({
         <>Agents won&apos;t save these again. Forget one to allow it.</>
       }
       status={
-        entries.length === 0
-          ? 'Nothing to forget.'
-          : `${plural(entries.length)} remembered.`
+        count === 0 ? 'Nothing to forget.' : `${plural(count)} remembered.`
       }
       title='Discarded'
     >
