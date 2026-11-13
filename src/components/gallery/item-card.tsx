@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { LinkIcon } from 'lucide-react'
 import type { GalleryImage, GalleryItem } from '@/lib/items/model'
-import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
+import { creditRepeatsSource, hostnameOf, itemLabel } from '@/lib/items/model'
 
 /**
  * Shows `/items/<id>` in the address bar while the item is open in the
@@ -9,16 +9,6 @@ import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
  */
 export function itemMask(id: string) {
   return { params: { id }, to: '/items/$id', unmaskOnReload: true } as const
-}
-
-/** Best short label for an item, used as alt text and titles. */
-export function itemLabel(item: GalleryItem) {
-  return (
-    item.title ||
-    item.description ||
-    (item.sourceUrl ? hostnameOf(item.sourceUrl) : null) ||
-    `Untitled ${item.type}`
-  )
 }
 
 function CardImage({ alt, image }: { alt: string; image: GalleryImage }) {

@@ -1,11 +1,11 @@
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { GalleryDrawer } from '@/components/gallery/gallery-drawer'
-import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import { useOwner } from '@/lib/auth/use-owner'
 import { type ItemView, loadItemView } from '@/lib/items/item-view'
+import { itemLabel } from '@/lib/items/model'
 
 interface Loaded {
   failed: boolean

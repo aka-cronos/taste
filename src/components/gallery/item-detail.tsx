@@ -1,9 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { itemLabel } from '@/components/gallery/item-card'
 import type { GalleryItem } from '@/lib/items/model'
-import { creditRepeatsSource, hostnameOf } from '@/lib/items/model'
+import { creditRepeatsSource, hostnameOf, itemLabel } from '@/lib/items/model'
 
 const EXTERNAL = { rel: 'noopener noreferrer nofollow', target: '_blank' }
 

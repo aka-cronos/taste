@@ -85,6 +85,16 @@ export function hostnameOf(url: string) {
   return new URL(url).hostname.replace(LEADING_WWW, '')
 }
 
+/** Best short label for an item, used as alt text and titles. */
+export function itemLabel(item: GalleryItem) {
+  return (
+    item.title ||
+    item.description ||
+    (item.sourceUrl ? hostnameOf(item.sourceUrl) : null) ||
+    `Untitled ${item.type}`
+  )
+}
+
 /**
  * The credit to show for an item: the author when known, linked to the
  * credit URL or else the source. Null only when there is neither an author

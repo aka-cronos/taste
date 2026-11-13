@@ -1,11 +1,11 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { z } from 'zod'
-import { itemLabel } from '@/components/gallery/item-card'
 import { ItemDetail } from '@/components/gallery/item-detail'
 import { ItemEditor } from '@/components/gallery/item-editor'
 import type { Owner } from '@/lib/auth/owner'
 import { useOwner } from '@/lib/auth/use-owner'
 import { type ItemView, loadItemView } from '@/lib/items/item-view'
+import { itemLabel } from '@/lib/items/model'
 
 async function loadItem({
   params,
