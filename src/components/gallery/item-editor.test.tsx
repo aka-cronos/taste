@@ -76,8 +76,14 @@ async function open(signedIn = true) {
   const root = createRootRoute({
     beforeLoad: (): Promise<{
       contactUrl: string | null
+      inboxCount: number
       owner: Owner | null
-    }> => Promise.resolve({ contactUrl: null, owner: signedIn ? owner : null }),
+    }> =>
+      Promise.resolve({
+        contactUrl: null,
+        inboxCount: 0,
+        owner: signedIn ? owner : null,
+      }),
   })
   const routeTree = root.addChildren([
     createRoute({

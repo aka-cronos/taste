@@ -14,6 +14,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { authClient } from '@/lib/auth/client'
 import { NOT_AUTHORIZED, NOT_AUTHORIZED_MESSAGE } from '@/lib/auth/owner'
 import { getOwner } from '@/lib/auth/session'
+import { getInboxCount } from '@/lib/items/inbox-server'
 import { getContactUrl } from '@/lib/site-config'
 import { themeInitScript } from '@/lib/theme'
 import appCss from '@/styles.css?url'
@@ -21,7 +22,8 @@ import appCss from '@/styles.css?url'
 export const Route = createRootRoute({
   beforeLoad: async () => {
     const [owner, contactUrl] = await Promise.all([getOwner(), getContactUrl()])
-    return { contactUrl, owner }
+    const inboxCount = owner ? await getInboxCount() : 0
+    return { contactUrl, inboxCount, owner }
   },
   component: RootLayout,
   head: () => ({
@@ -47,10 +49,7 @@ function authErrorMessage(error: unknown) {
 
 function RootLayout() {
   const router = useRouter()
-  const owner = useRouteContext({
-    from: '__root__',
-    select: context => context.owner,
-  })
+  const { owner, inboxCount } = useRouteContext({ from: '__root__' })
   const authError = useLocation({
     select: location =>
       authErrorMessage((location.search as { error?: unknown }).error),
@@ -60,6 +59,7 @@ function RootLayout() {
     <>
       <SiteHeader
         authError={owner ? null : authError}
+        inboxCount={inboxCount}
         onSignIn={() =>
           authClient.signIn.social({
             callbackURL: '/',

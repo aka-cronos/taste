@@ -25,6 +25,11 @@ export interface GalleryItem {
   type: ItemType
 }
 
+/** An inbox item as the owner reviews it, with where it came from. */
+export interface InboxItem extends GalleryItem {
+  origin: ItemOrigin
+}
+
 export interface GalleryImage {
   height: number | null
   url: string

@@ -26,3 +26,13 @@ export type EditItemInput = z.infer<typeof editItemSchema>
 export interface ItemEditorData extends EditItemInput {
   status: 'inbox' | 'published'
 }
+
+/** Inbox items to publish or discard at once. */
+export const inboxSelectionSchema = z.object({
+  ids: z
+    .array(itemIdSchema.shape.id)
+    .min(1)
+    .max(100)
+    .transform(ids => [...new Set(ids)]),
+})
+export type InboxSelection = z.infer<typeof inboxSelectionSchema>

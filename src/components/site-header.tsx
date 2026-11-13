@@ -1,12 +1,16 @@
-import { LogInIcon, LogOutIcon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { InboxIcon, LogInIcon, LogOutIcon } from 'lucide-react'
 import { useState } from 'react'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
 import type { Owner } from '@/lib/auth/owner'
 
 interface SiteHeaderProps {
   /** Message from a rejected sign-in, shown under the header. */
   authError?: string | null
+  /** Items waiting in the owner's inbox. */
+  inboxCount?: number
   onSignIn: () => Promise<unknown>
   onSignOut: () => Promise<unknown>
   owner: Owner | null
@@ -14,6 +18,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({
   authError,
+  inboxCount = 0,
   onSignIn,
   onSignOut,
   owner,
@@ -32,11 +37,27 @@ export function SiteHeader({
   return (
     <header className='border-b'>
       <div className='mx-auto flex h-14 max-w-6xl items-center gap-2 px-4'>
-        <span className='font-heading mr-auto text-lg font-semibold tracking-tight'>
+        <Link
+          className='font-heading mr-auto text-lg font-semibold tracking-tight'
+          to='/'
+        >
           Taste
-        </span>
+        </Link>
         {owner ? (
           <>
+            <Link
+              aria-label={`Inbox, ${inboxCount} ${inboxCount === 1 ? 'item' : 'items'}`}
+              className={buttonVariants({ variant: 'ghost' })}
+              to='/inbox'
+            >
+              <InboxIcon />
+              Inbox
+              {inboxCount > 0 ? (
+                <Badge aria-hidden className='tabular-nums'>
+                  {inboxCount}
+                </Badge>
+              ) : null}
+            </Link>
             <span className='text-muted-foreground hidden text-sm sm:inline'>
               {owner.name || owner.email}
             </span>
