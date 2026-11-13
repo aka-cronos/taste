@@ -22,8 +22,15 @@ import { Route } from '@/routes/index'
 vi.mock('@/lib/items/add', () => ({ addManualItem: vi.fn() }))
 
 vi.mock('@/lib/items/server', () => ({
+  getGalleryItem: vi.fn(),
   listGallery: vi.fn(),
   listGalleryTags: vi.fn(),
+}))
+vi.mock('@/lib/items/manage-server', () => ({
+  changeItemVisibility: vi.fn(),
+  getOwnerItem: vi.fn(),
+  permanentlyDeleteItem: vi.fn(),
+  saveItemEdits: vi.fn(),
 }))
 vi.mock('@/lib/auth/session', () => ({ getOwner: vi.fn() }))
 vi.mock('@/lib/items/inbox-server', () => ({ getInboxCount: vi.fn() }))
