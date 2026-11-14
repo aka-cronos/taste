@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { betterAuth } from 'better-auth'
 import { getMigrations } from 'better-auth/db/migration'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { type AuthEnv, createAuthOptions } from '@/lib/auth/options'
 import { NOT_AUTHORIZED } from '@/lib/auth/owner'
 
@@ -94,3 +94,5 @@ describe('owner-only sign-in', () => {
     expect(userCount()).toBe(0)
   })
 })
+
+vi.mock('cloudflare:sockets', () => ({ connect: vi.fn() }))

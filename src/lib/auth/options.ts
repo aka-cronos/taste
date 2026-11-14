@@ -1,11 +1,19 @@
-import type { BetterAuthOptions } from 'better-auth'
-import { oAuthProxy } from 'better-auth/plugins'
+import { cimd } from '@better-auth/cimd'
+import { mcp } from '@better-auth/mcp'
+import { type BetterAuthOptions, resolveDynamicBaseURL } from 'better-auth'
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from 'better-auth/api'
+import { jwt, oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import {
   isOwnerEmail,
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
+import { fetchClientMetadataResource } from '@/lib/mcp/metadata-fetch'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
 
@@ -22,7 +30,7 @@ export type AuthEnv = Pick<
     Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string>
   >
 
-export function createAuthOptions(env: AuthEnv) {
+export function createAuthOptions(env: AuthEnv, request?: Request) {
   const proxyUrl = env.OAUTH_PROXY_URL?.trim()
   const previewHost = env.AUTH_PREVIEW_HOST?.trim()
   if (Boolean(proxyUrl) !== Boolean(previewHost)) {
@@ -39,13 +47,19 @@ export function createAuthOptions(env: AuthEnv) {
         'Use an HTTPS proxy origin and a workers.dev Preview host pattern.',
       )
     }
+    const dynamicBaseURL = {
+      allowedHosts: [url.host, previewHost],
+      protocol: 'https' as const,
+    }
+    const origin = request
+      ? resolveDynamicBaseURL(dynamicBaseURL, request, '')
+      : undefined
+    const requestEnv = origin ? { ...env, BETTER_AUTH_URL: origin } : env
     return {
-      ...baseAuthOptions(env),
-      baseURL: {
-        allowedHosts: [url.host, previewHost],
-        protocol: 'https' as const,
-      },
+      ...baseAuthOptions(requestEnv),
+      baseURL: origin ?? dynamicBaseURL,
       plugins: [
+        ...mcpPlugins(requestEnv),
         oAuthProxy({ productionURL: proxyUrl, secret: env.BETTER_AUTH_SECRET }),
         tanstackStartCookies(),
       ],
@@ -60,8 +74,24 @@ function baseAuthOptions(env: AuthEnv) {
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,
     database: env.DB,
+    disabledPaths: ['/token'],
+    hooks: {
+      before: createAuthMiddleware(async ctx => {
+        if (
+          ctx.path === '/oauth2/authorize' ||
+          ctx.path === '/oauth2/consent'
+        ) {
+          const session = await getSessionFromCtx(ctx, {
+            disableCookieCache: true,
+          })
+          if (session && !isOwnerEmail(session.user.email, env.OWNER_EMAIL)) {
+            throw new APIError('FORBIDDEN', { message: NOT_AUTHORIZED_MESSAGE })
+          }
+        }
+      }),
+    },
     // Must stay last so it can set the cookies of the other plugins' responses.
-    plugins: [tanstackStartCookies()],
+    plugins: [...mcpPlugins(env), tanstackStartCookies()],
     secret: env.BETTER_AUTH_SECRET,
     session: {
       // Reading the session from a signed cookie skips a D1 query on most
@@ -93,4 +123,25 @@ function baseAuthOptions(env: AuthEnv) {
       },
     },
   } satisfies BetterAuthOptions
+}
+
+function mcpPlugins(env: AuthEnv) {
+  return [
+    jwt({ disableSettingJwtHeader: true }),
+    mcp({
+      allowDynamicClientRegistration: false,
+      consentPage: '/mcp/authorize',
+      customAccessTokenClaims: ({ user }) => {
+        if (!isOwnerEmail(user?.email, env.OWNER_EMAIL)) {
+          throw new APIError('FORBIDDEN', { message: NOT_AUTHORIZED_MESSAGE })
+        }
+        return {}
+      },
+      grantTypes: ['authorization_code', 'refresh_token'],
+      loginPage: '/mcp/authorize',
+      resource: new URL('/mcp', env.BETTER_AUTH_URL).href,
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:read'],
+    }),
+    cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
+  ]
 }

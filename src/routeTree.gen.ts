@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as InboxDiscardedRouteImport } from './routes/inbox_.discarded'
 import { Route as ItemsIdRouteImport } from './routes/items/$id'
+import { Route as McpAuthorizeRouteImport } from './routes/mcp_.authorize'
 import { Route as MediaSplatRouteImport } from './routes/media/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -25,6 +28,16 @@ const IndexRoute = IndexRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
+  id: '/.well-known/$',
+  path: '/.well-known/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -42,6 +55,11 @@ const ItemsIdRoute = ItemsIdRouteImport.update({
   path: '/items/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpAuthorizeRoute = McpAuthorizeRouteImport.update({
+  id: '/mcp_/authorize',
+  path: '/mcp/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MediaSplatRoute = MediaSplatRouteImport.update({
   id: '/media/$',
   path: '/media/$',
@@ -56,18 +74,24 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
+  '/mcp/authorize': typeof McpAuthorizeRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
+  '/mcp/authorize': typeof McpAuthorizeRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -75,9 +99,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox_/discarded': typeof InboxDiscardedRoute
   '/items/$id': typeof ItemsIdRoute
+  '/mcp_/authorize': typeof McpAuthorizeRoute
   '/media/$': typeof MediaSplatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -86,27 +113,36 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/inbox'
+    | '/mcp'
+    | '/.well-known/$'
     | '/api/health'
     | '/inbox/discarded'
     | '/items/$id'
+    | '/mcp/authorize'
     | '/media/$'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/inbox'
+    | '/mcp'
+    | '/.well-known/$'
     | '/api/health'
     | '/inbox/discarded'
     | '/items/$id'
+    | '/mcp/authorize'
     | '/media/$'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/inbox'
+    | '/mcp'
+    | '/.well-known/$'
     | '/api/health'
     | '/inbox_/discarded'
     | '/items/$id'
+    | '/mcp_/authorize'
     | '/media/$'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -114,9 +150,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InboxRoute: typeof InboxRoute
+  McpRoute: typeof McpRoute
+  DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   InboxDiscardedRoute: typeof InboxDiscardedRoute
   ItemsIdRoute: typeof ItemsIdRoute
+  McpAuthorizeRoute: typeof McpAuthorizeRoute
   MediaSplatRoute: typeof MediaSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -135,6 +174,20 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/$': {
+      id: '/.well-known/$'
+      path: '/.well-known/$'
+      fullPath: '/.well-known/$'
+      preLoaderRoute: typeof DotwellKnownSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -158,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ItemsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp_/authorize': {
+      id: '/mcp_/authorize'
+      path: '/mcp/authorize'
+      fullPath: '/mcp/authorize'
+      preLoaderRoute: typeof McpAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/media/$': {
       id: '/media/$'
       path: '/media/$'
@@ -178,9 +238,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InboxRoute: InboxRoute,
+  McpRoute: McpRoute,
+  DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   InboxDiscardedRoute: InboxDiscardedRoute,
   ItemsIdRoute: ItemsIdRoute,
+  McpAuthorizeRoute: McpAuthorizeRoute,
   MediaSplatRoute: MediaSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

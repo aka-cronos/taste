@@ -37,7 +37,7 @@ interface ItemRow {
 
 const ITEM_SELECT = `
   SELECT
-    i.id, i.type, i.title, i.description, i.note, i.source_url,
+    i.id, i.type, i.status, i.title, i.description, i.note, i.source_url,
     i.credit_author, i.credit_url, i.image_key, i.image_width,
     i.image_height, i.origin, coalesce(i.published_at, i.created_at) AS published_at,
     (
@@ -203,4 +203,66 @@ export async function countInboxItems(db: D1Database): Promise<number> {
       .prepare("SELECT count(*) AS count FROM items WHERE status = 'inbox'")
       .first<number>('count')) ?? 0
   )
+}
+
+export async function searchOwnerItems(
+  db: D1Database,
+  input: GalleryFilters & {
+    status?: ItemStatus
+    cursor?: string
+    limit?: number
+  },
+) {
+  const { clauses, values } = gallerySearchConditions(input)
+  const params: (string | number)[] = [...values]
+  if (input.status) {
+    clauses.push('i.status = ?')
+    params.push(input.status)
+  }
+  const after = input.cursor ? decodeCursor(input.cursor) : null
+  if (after) {
+    clauses.push(
+      '(coalesce(i.published_at, i.created_at) < ? OR (coalesce(i.published_at, i.created_at) = ? AND i.id < ?))',
+    )
+    params.push(after.publishedAt, after.publishedAt, after.id)
+  }
+  const size = Math.min(
+    Math.max(1, input.limit ?? DEFAULT_PAGE_SIZE),
+    MAX_PAGE_SIZE,
+  )
+  params.push(size + 1)
+  const { results } = await db
+    .prepare(`${ITEM_SELECT}${clauses.map(clause => ` AND ${clause}`).join('')}
+    ORDER BY coalesce(i.published_at, i.created_at) DESC, i.id DESC LIMIT ?`)
+    .bind(...params)
+    .all<ItemRow & { status: ItemStatus }>()
+  const items = results.slice(0, size).map(row => ({
+    ...toGalleryItem(row),
+    origin: row.origin,
+    status: row.status,
+  }))
+  const last = items.at(-1)
+  return {
+    items,
+    nextCursor: results.length > size && last ? encodeCursor(last) : null,
+  }
+}
+
+export async function getMcpItem(db: D1Database, id: string) {
+  const row = await db
+    .prepare(`${ITEM_SELECT} AND i.id = ?`)
+    .bind(id)
+    .first<ItemRow & { status: ItemStatus }>()
+  return row
+    ? { ...toGalleryItem(row), origin: row.origin, status: row.status }
+    : null
+}
+
+export async function listOwnerTagCounts(db: D1Database) {
+  const { results } = await db
+    .prepare(`SELECT t.normalized_name AS name, count(DISTINCT i.id) AS count
+    FROM tags t JOIN item_tags it ON it.tag_id = t.id JOIN items i ON i.id = it.item_id
+    GROUP BY t.normalized_name ORDER BY t.normalized_name`)
+    .all<{ name: string; count: number }>()
+  return results
 }
