@@ -1,4 +1,3 @@
-import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
 import { type BetterAuthOptions, resolveDynamicBaseURL } from 'better-auth'
 import {
@@ -13,7 +12,6 @@ import {
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
-import { fetchClientMetadataResource } from '@/lib/mcp/metadata-fetch'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
 
@@ -70,6 +68,7 @@ export function createAuthOptions(env: AuthEnv, request?: Request) {
 
 function baseAuthOptions(env: AuthEnv) {
   return {
+    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     appName: 'Taste',
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,
@@ -92,6 +91,7 @@ function baseAuthOptions(env: AuthEnv) {
     },
     // Must stay last so it can set the cookies of the other plugins' responses.
     plugins: [...mcpPlugins(env), tanstackStartCookies()],
+    rateLimit: { enabled: true, storage: 'database' },
     secret: env.BETTER_AUTH_SECRET,
     session: {
       // Reading the session from a signed cookie skips a D1 query on most
@@ -129,7 +129,11 @@ function mcpPlugins(env: AuthEnv) {
   return [
     jwt({ disableSettingJwtHeader: true }),
     mcp({
-      allowDynamicClientRegistration: false,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      clientRegistrationDefaultApplicationType: 'infer',
+      clientRegistrationDefaultScopes: ['mcp:read', 'offline_access'],
+      clientRegistrationRequirePKCE: true,
       consentPage: '/mcp/authorize',
       customAccessTokenClaims: ({ user }) => {
         if (!isOwnerEmail(user?.email, env.OWNER_EMAIL)) {
@@ -139,9 +143,9 @@ function mcpPlugins(env: AuthEnv) {
       },
       grantTypes: ['authorization_code', 'refresh_token'],
       loginPage: '/mcp/authorize',
+      rateLimit: { register: { max: 5, window: 60 } },
       resource: new URL('/mcp', env.BETTER_AUTH_URL).href,
       scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:read'],
     }),
-    cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
   ]
 }
