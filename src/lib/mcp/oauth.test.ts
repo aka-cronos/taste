@@ -15,16 +15,27 @@ vi.mock('@/lib/mcp/metadata-fetch', () => ({
 const ORIGIN = 'https://taste.example.com'
 const OWNER = 'owner@example.com'
 
-async function setup() {
+async function setup(origin = ORIGIN, preview = false) {
   const { db, sqlite } = createTestD1()
-  const base = createAuthOptions({
-    BETTER_AUTH_SECRET: 'test-secret-with-at-least-32-characters',
-    BETTER_AUTH_URL: ORIGIN,
-    DB: db,
-    GOOGLE_CLIENT_ID: 'client',
-    GOOGLE_CLIENT_SECRET: 'secret',
-    OWNER_EMAIL: OWNER,
-  })
+  const base = createAuthOptions(
+    {
+      ...(preview
+        ? {
+            AUTH_PREVIEW_HOST: '*-taste.example.workers.dev',
+            OAUTH_PROXY_URL: 'https://auth-taste.example.workers.dev',
+          }
+        : {}),
+      BETTER_AUTH_SECRET: 'test-secret-with-at-least-32-characters',
+      BETTER_AUTH_URL: preview
+        ? 'https://auth-taste.example.workers.dev'
+        : ORIGIN,
+      DB: db,
+      GOOGLE_CLIENT_ID: 'client',
+      GOOGLE_CLIENT_SECRET: 'secret',
+      OWNER_EMAIL: OWNER,
+    },
+    new Request(`${origin}/api/auth/get-session`),
+  )
   const options = {
     ...base,
     database: sqlite,
@@ -56,7 +67,7 @@ async function setup() {
     .getSetCookie()
     .map(value => value.split(';')[0])
     .join('; ')
-  const headers = new Headers({ cookie, origin: ORIGIN })
+  const headers = new Headers({ cookie, origin })
   const client = await auth.api.createOAuthClient({
     body: {
       client_name: 'Test MCP',
@@ -66,8 +77,8 @@ async function setup() {
     },
     headers,
   })
-  const handle = protectedMcp(auth, db, OWNER, ORIGIN)
-  return { auth, client, db, handle, headers, sqlite }
+  const handle = protectedMcp(auth, db, OWNER, origin)
+  return { auth, client, db, handle, headers, origin, sqlite }
 }
 
 async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
@@ -77,32 +88,32 @@ async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
     code_challenge: createHash('sha256').update(verifier).digest('base64url'),
     code_challenge_method: 'S256',
     redirect_uri: 'https://client.example.com/callback',
-    resource: `${ORIGIN}/mcp`,
+    resource: `${state.origin}/mcp`,
     response_type: 'code',
     scope: 'mcp:read offline_access',
     state: 'client-state',
   })
   const response = await state.auth.handler(
-    new Request(`${ORIGIN}/api/auth/oauth2/authorize?${query}`, {
+    new Request(`${state.origin}/api/auth/oauth2/authorize?${query}`, {
       headers: state.headers,
     }),
   )
   expect(response.status).toBe(302)
-  const consent = new URL(response.headers.get('location') ?? '', ORIGIN)
+  const consent = new URL(response.headers.get('location') ?? '', state.origin)
   const approval = await state.auth.api.oauth2Consent({
     body: { accept: true, oauth_query: consent.search.slice(1) },
     headers: state.headers,
   })
   const code = new URL(approval.url).searchParams.get('code')
   const exchange = await state.auth.handler(
-    new Request(`${ORIGIN}/api/auth/oauth2/token`, {
+    new Request(`${state.origin}/api/auth/oauth2/token`, {
       body: new URLSearchParams({
         client_id: state.client.client_id,
         code: code ?? '',
         code_verifier: verifier,
         grant_type: 'authorization_code',
         redirect_uri: 'https://client.example.com/callback',
-        resource: `${ORIGIN}/mcp`,
+        resource: `${state.origin}/mcp`,
       }),
       method: 'POST',
     }),
@@ -118,8 +129,9 @@ function rpc(
   token: string,
   method: string,
   params: { name?: string; arguments?: object } = {},
+  origin = ORIGIN,
 ) {
-  return new Request(`${ORIGIN}/mcp`, {
+  return new Request(`${origin}/mcp`, {
     body: JSON.stringify({
       id: 1,
       jsonrpc: '2.0',
@@ -258,6 +270,63 @@ describe('private MCP OAuth', () => {
     ).toBe('/mcp/authorize')
     expect(fetchClientMetadataResource).toHaveBeenCalled()
   })
+  it.each([
+    'https://feature-one-taste.example.workers.dev',
+    'https://another-branch-taste.example.workers.dev',
+  ])(
+    'keeps discovery, PKCE tokens and MCP on preview origin %s',
+    async origin => {
+      const state = await setup(origin, true)
+      const challenge = await state.handle(
+        new Request(`${origin}/mcp`, { method: 'POST' }),
+      )
+      expect(challenge.headers.get('www-authenticate')).toContain(
+        `${origin}/.well-known/oauth-protected-resource/mcp`,
+      )
+      const metadata = await state.auth.handler(
+        new Request(`${origin}/.well-known/oauth-protected-resource/mcp`),
+      )
+      expect(await metadata.json()).toMatchObject({
+        authorization_servers: [`${origin}/api/auth`],
+        resource: `${origin}/mcp`,
+      })
+      const discovery = await state.auth.handler(
+        new Request(
+          `${origin}/.well-known/oauth-authorization-server/api/auth`,
+        ),
+      )
+      expect(await discovery.json()).toMatchObject({
+        authorization_endpoint: `${origin}/api/auth/oauth2/authorize`,
+        issuer: `${origin}/api/auth`,
+        token_endpoint: `${origin}/api/auth/oauth2/token`,
+      })
+      const tokens = await tokenFor(state)
+      const claims = JSON.parse(
+        Buffer.from(
+          tokens.access_token.split('.')[1] ?? '',
+          'base64url',
+        ).toString(),
+      )
+      expect(claims).toMatchObject({
+        aud: `${origin}/mcp`,
+        iss: `${origin}/api/auth`,
+      })
+      const response = await state.handle(
+        rpc(tokens.access_token, 'tools/list', {}, origin),
+      )
+      expect(response.status, await response.clone().text()).toBe(200)
+      expect(
+        (
+          await protectedMcp(
+            state.auth,
+            state.db,
+            OWNER,
+            'https://foreign-taste.example.workers.dev',
+          )(rpc(tokens.access_token, 'tools/list', {}, origin))
+        ).status,
+      ).toBe(401)
+    },
+  )
   it('rejects invalid signatures, wrong audiences, session tokens and missing scope', async () => {
     const state = await setup()
     const user = state.sqlite.prepare('SELECT id FROM user').get() as {

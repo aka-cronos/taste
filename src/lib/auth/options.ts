@@ -1,6 +1,6 @@
 import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
-import type { BetterAuthOptions } from 'better-auth'
+import { type BetterAuthOptions, resolveDynamicBaseURL } from 'better-auth'
 import {
   APIError,
   createAuthMiddleware,
@@ -30,7 +30,7 @@ export type AuthEnv = Pick<
     Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string>
   >
 
-export function createAuthOptions(env: AuthEnv) {
+export function createAuthOptions(env: AuthEnv, request?: Request) {
   const proxyUrl = env.OAUTH_PROXY_URL?.trim()
   const previewHost = env.AUTH_PREVIEW_HOST?.trim()
   if (Boolean(proxyUrl) !== Boolean(previewHost)) {
@@ -47,14 +47,19 @@ export function createAuthOptions(env: AuthEnv) {
         'Use an HTTPS proxy origin and a workers.dev Preview host pattern.',
       )
     }
+    const dynamicBaseURL = {
+      allowedHosts: [url.host, previewHost],
+      protocol: 'https' as const,
+    }
+    const origin = request
+      ? resolveDynamicBaseURL(dynamicBaseURL, request, '')
+      : undefined
+    const requestEnv = origin ? { ...env, BETTER_AUTH_URL: origin } : env
     return {
-      ...baseAuthOptions(env),
-      baseURL: {
-        allowedHosts: [url.host, previewHost],
-        protocol: 'https' as const,
-      },
+      ...baseAuthOptions(requestEnv),
+      baseURL: origin ?? dynamicBaseURL,
       plugins: [
-        ...mcpPlugins(env),
+        ...mcpPlugins(requestEnv),
         oAuthProxy({ productionURL: proxyUrl, secret: env.BETTER_AUTH_SECRET }),
         tanstackStartCookies(),
       ],

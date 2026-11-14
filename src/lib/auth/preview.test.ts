@@ -18,12 +18,15 @@ const previewEnv = {
   OWNER_EMAIL: OWNER,
 }
 
-async function setup() {
+async function setup(origin = PREVIEW) {
   const database = new DatabaseSync(':memory:')
-  const base = createAuthOptions({
-    ...previewEnv,
-    DB: database as unknown as D1Database,
-  })
+  const base = createAuthOptions(
+    {
+      ...previewEnv,
+      DB: database as unknown as D1Database,
+    },
+    new Request(`${origin}/api/auth/get-session`),
+  )
   const options = {
     ...base,
     advanced: { disableCSRFCheck: false, disableOriginCheck: false },
@@ -74,7 +77,7 @@ describe('Preview OAuth proxy', () => {
   it.each([PREVIEW, 'https://another-branch-taste.example.workers.dev'])(
     'uses the same fixed Google callback from %s',
     async origin => {
-      const { auth } = await setup()
+      const { auth } = await setup(origin)
       const response = await begin(auth, origin)
       expect(response.status).toBe(200)
       const result = (await response.json()) as { url: string }
@@ -92,7 +95,7 @@ describe('Preview OAuth proxy', () => {
     'keeps the owner restriction through the proxy: $email, verified=$verified',
     async ({ email, verified, allowed }) => {
       const preview = await setup()
-      const proxy = await setup()
+      const proxy = await setup(PROXY)
       const start = await begin(preview.auth)
       const authorization = new URL(
         ((await start.json()) as { url: string }).url,
@@ -167,6 +170,21 @@ describe('Preview OAuth proxy', () => {
     )
   })
 
+  it.each([
+    'https://attacker.example',
+    'https://another-app.example.workers.dev',
+    'https://feature-one-taste.example.workers.dev.attacker.example',
+  ])(
+    'rejects an untrusted request origin before constructing MCP metadata: %s',
+    origin => {
+      expect(() =>
+        createAuthOptions(
+          { ...previewEnv, DB: {} as D1Database },
+          new Request(`${origin}/.well-known/oauth-protected-resource/mcp`),
+        ),
+      ).toThrow('allowed hosts')
+    },
+  )
   it('rejects an incomplete proxy configuration', () => {
     const env: AuthEnv = {
       ...previewEnv,

@@ -6,12 +6,15 @@ import { createAuthOptions } from '@/lib/auth/options'
 let instance: ReturnType<typeof createAuth> | undefined
 let migrated: Promise<void> | undefined
 
-function createAuth() {
-  return betterAuth(createAuthOptions(env))
+function createAuth(request?: Request) {
+  return betterAuth(createAuthOptions(env, request))
 }
 
-/** The Better Auth instance, created once per isolate. */
-export function getAuth() {
+/** Preview requests bind OAuth and MCP to their validated origin. */
+export function getAuth(request?: Request) {
+  if (request && env.OAUTH_PROXY_URL?.trim()) {
+    return createAuth(request)
+  }
   instance ??= createAuth()
   return instance
 }
