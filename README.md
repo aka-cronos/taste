@@ -68,3 +68,26 @@ permanently removes its stored image or link cover, tag links and search entry.
 Set `CONTACT_URL` in `wrangler.jsonc` (`vars`) to an `https://` contact page or a
 `mailto:` address to show a “Request removal” link in the site footer. Leave it
 empty to omit the link. Locally, it can be overridden in `.dev.vars`.
+
+## MCP writes
+
+Connect an MCP client to `/mcp` and complete owner OAuth consent. Read-only
+clients use `mcp:read`. To save and edit references, explicitly request both
+`mcp:read` and `mcp:write` during registration and authorization; write access
+is never granted by default. Reconnect existing clients with those scopes to
+request write access.
+
+- `save_item` requires `type` (`image`, `link`, or `note`) and a non-empty
+  `description`. For a post, pass `sourceUrl` with `type: "link"`. For an image,
+  pass either `imageUrl` or raw `imageBase64` plus `imageContentType` (PNG, JPEG,
+  GIF, or WebP, up to 10 MB). For a note, pass `note`.
+- Optional metadata: `title`, `tags`, `creditAuthor`, `creditUrl`, and `note`.
+  New items always enter the inbox with agent origin. Duplicates return
+  `duplicate: true` and the existing item, merging tags while preserving its
+  metadata and visibility. Discarded sources are rejected.
+- `update_item` takes `id` and any of `title`, `description`, `note`, `tags`,
+  `creditAuthor`, or `creditUrl`. Only supplied fields change; `tags` replaces
+  the tag list. Empty strings clear optional text and credit fields.
+
+Neither write tool can change visibility, origin, or source, publish an item,
+or delete one. Read-only tokens cannot discover or call write tools.
