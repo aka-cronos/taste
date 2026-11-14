@@ -2,9 +2,9 @@ import { env } from 'cloudflare:workers'
 import { betterAuth } from 'better-auth'
 import { getMigrations } from 'better-auth/db/migration'
 import { createAuthOptions } from '@/lib/auth/options'
+import { createSchemaGate } from '@/lib/auth/schema-gate'
 
 let instance: ReturnType<typeof createAuth> | undefined
-let migrated: Promise<void> | undefined
 
 function createAuth(request?: Request) {
   return betterAuth(createAuthOptions(env, request))
@@ -20,15 +20,11 @@ export function getAuth(request?: Request) {
 }
 
 /**
- * Creates or updates the Better Auth tables in D1. Runs once per isolate; the
- * schema check is a couple of batched PRAGMA queries when nothing changed.
+ * Creates or updates the Better Auth tables in D1. Runs until it succeeds once
+ * per isolate; the schema check is a couple of batched PRAGMA queries when
+ * nothing changed.
  */
-export function ensureAuthSchema() {
-  migrated ??= getMigrations(createAuthOptions(env))
-    .then(({ runMigrations }) => runMigrations())
-    .catch((error: unknown) => {
-      migrated = undefined
-      throw error
-    })
-  return migrated
-}
+export const ensureAuthSchema = createSchemaGate(async () => {
+  const { runMigrations } = await getMigrations(createAuthOptions(env))
+  await runMigrations()
+})
