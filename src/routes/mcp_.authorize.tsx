@@ -14,6 +14,7 @@ function Authorize() {
   const [error, setError] = useState<string | null>(null)
   const search = useLocation({ select: location => location.searchStr })
   const query = new URLSearchParams(search)
+  const canWrite = query.get('scope')?.split(' ').includes('mcp:write') ?? false
   const validRequest = query.has('client_id') && query.has('sig')
   const form = useAppForm({
     defaultValues: {},
@@ -41,8 +42,9 @@ function Authorize() {
     <main className='mx-auto max-w-xl space-y-6 px-6 py-16'>
       <h1 className='text-2xl font-semibold'>Connect to Taste</h1>
       <p className='text-muted-foreground'>
-        Allow your MCP client to search and read your references, including your
-        private inbox. It cannot edit, publish or delete anything.
+        {canWrite
+          ? 'Allow your MCP client to search and read your references, save to your inbox, and edit metadata. It cannot publish or delete anything.'
+          : 'Allow your MCP client to search and read your references, including your private inbox. It cannot edit, publish or delete anything.'}
       </p>
       <p className='text-sm break-all'>
         Client: {query.get('client_id') ?? 'Continue from your MCP client'}
@@ -63,7 +65,9 @@ function Authorize() {
               form.handleSubmit()
             }}
           >
-            <form.SubmitButton>Allow read access</form.SubmitButton>
+            <form.SubmitButton>
+              {canWrite ? 'Allow read and write access' : 'Allow read access'}
+            </form.SubmitButton>
           </form>
         </form.AppForm>
       ) : null}

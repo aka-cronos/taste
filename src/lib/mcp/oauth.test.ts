@@ -11,8 +11,15 @@ import { insertItem } from '@/test/items'
 const ORIGIN = 'https://taste.example.com'
 const OWNER = 'owner@example.com'
 
-async function setup(origin = ORIGIN, preview = false) {
+async function setup(origin = ORIGIN, preview = false, write = false) {
   const { db, sqlite } = createTestD1()
+  const scope = write
+    ? 'mcp:read mcp:write offline_access'
+    : 'mcp:read offline_access'
+  const bucket = {
+    delete: vi.fn().mockResolvedValue(undefined),
+    put: vi.fn().mockResolvedValue({}),
+  }
   const base = createAuthOptions(
     {
       ...(preview
@@ -69,7 +76,7 @@ async function setup(origin = ORIGIN, preview = false) {
       body: JSON.stringify({
         client_name: 'Test MCP',
         redirect_uris: ['https://client.example.com/callback'],
-        scope: 'mcp:read offline_access',
+        scope,
         token_endpoint_auth_method: 'none',
       }),
       headers: { 'content-type': 'application/json' },
@@ -78,8 +85,8 @@ async function setup(origin = ORIGIN, preview = false) {
   )
   expect(registration.status, await registration.clone().text()).toBe(201)
   const client = (await registration.json()) as { client_id: string }
-  const handle = protectedMcp(auth, db, OWNER, origin)
-  return { auth, client, db, handle, headers, origin, sqlite }
+  const handle = protectedMcp(auth, db, OWNER, origin, bucket)
+  return { auth, bucket, client, db, handle, headers, origin, scope, sqlite }
 }
 
 async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
@@ -91,7 +98,7 @@ async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
     redirect_uri: 'https://client.example.com/callback',
     resource: `${state.origin}/mcp`,
     response_type: 'code',
-    scope: 'mcp:read offline_access',
+    scope: state.scope,
     state: 'client-state',
   })
   const response = await state.auth.handler(
@@ -341,7 +348,7 @@ describe('private MCP OAuth', () => {
       .run('former-owner@example.com')
     expect((await state.handle(legacyRequest('tools/list'))).status).toBe(403)
   })
-  it('does not fetch URL-shaped client identifiers or allow registration to grant write scopes', async () => {
+  it('does not fetch URL-shaped client identifiers or allow unsupported scopes', async () => {
     const state = await setup()
     const network = vi.spyOn(globalThis, 'fetch')
     try {
@@ -371,7 +378,7 @@ describe('private MCP OAuth', () => {
         body: JSON.stringify({
           client_name: 'Overprivileged client',
           redirect_uris: ['https://client.example.com/callback'],
-          scope: 'mcp:write',
+          scope: 'mcp:publish',
           token_endpoint_auth_method: 'none',
         }),
         headers: { 'content-type': 'application/json' },
@@ -521,5 +528,170 @@ describe('private MCP OAuth', () => {
       )
       expect(response.status).toBe(403)
     }
+  })
+  it('requires explicit write consent and keeps read-only tokens from calling write tools', async () => {
+    const state = await setup()
+    const tokens = await tokenFor(state)
+    const response = await state.handle(
+      rpc(tokens.access_token, 'tools/call', {
+        arguments: { description: 'test', note: 'secret', type: 'note' },
+        name: 'save_item',
+      }),
+    )
+    const payload = (await response.json()) as {
+      error?: unknown
+      result?: { isError?: boolean }
+    }
+    expect(Boolean(payload.error) || payload.result?.isError).toBe(true)
+    expect(
+      state.sqlite.prepare('SELECT count(*) AS n FROM items').get(),
+    ).toMatchObject({ n: 0 })
+  })
+
+  it('saves base64 and URL images into the inbox, merges duplicates and only edits metadata', async () => {
+    const state = await setup(ORIGIN, false, true)
+    const tokens = await tokenFor(state)
+    const call = async (name: string, args: object) => {
+      const response = await state.handle(
+        rpc(tokens.access_token, 'tools/call', { arguments: args, name }),
+      )
+      expect(response.status).toBe(200)
+      return (
+        (await response.json()) as {
+          result: { isError?: boolean; content: { text: string }[] }
+        }
+      ).result
+    }
+    const list = await state.handle(rpc(tokens.access_token, 'tools/list'))
+    expect(
+      (
+        (await list.json()) as { result: { tools: { name: string }[] } }
+      ).result.tools
+        .map(tool => tool.name)
+        .sort(),
+    ).toEqual([
+      'get_item',
+      'list_tags',
+      'save_item',
+      'search_items',
+      'update_item',
+    ])
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1])
+    const input = {
+      creditAuthor: 'Artist',
+      creditUrl: 'https://example.com/artist',
+      description: 'Warm poster',
+      imageBase64: Buffer.from(png).toString('base64'),
+      imageContentType: 'image/png',
+      note: 'Keep',
+      tags: ['WARM'],
+      title: 'Original',
+      type: 'image',
+    }
+    const first = await call('save_item', input)
+    expect(first.isError).not.toBe(true)
+    const saved = JSON.parse(first.content[0]?.text ?? '')
+    expect(saved).toMatchObject({
+      duplicate: false,
+      item: {
+        credit: { label: 'Artist', url: 'https://example.com/artist' },
+        description: 'Warm poster',
+        image: { url: expect.stringContaining(`${ORIGIN}/media/`) },
+        origin: 'agent',
+        status: 'inbox',
+      },
+    })
+    expect(state.bucket.put).toHaveBeenCalledWith(expect.any(String), png, {
+      httpMetadata: { contentType: 'image/png' },
+    })
+    const network = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(png, { headers: { 'content-type': 'image/png' } }),
+      )
+    try {
+      const duplicate = await call('save_item', {
+        creditAuthor: 'Other',
+        description: 'Different',
+        imageUrl: 'https://8.8.8.8/poster.png',
+        tags: ['NEW'],
+        type: 'image',
+      })
+      expect(JSON.parse(duplicate.content[0]?.text ?? '')).toMatchObject({
+        duplicate: true,
+        item: {
+          credit: { label: 'Artist' },
+          description: 'Warm poster',
+          id: saved.item.id,
+          tags: ['new', 'warm'],
+        },
+      })
+      network.mockResolvedValueOnce(
+        new Response(new Uint8Array([...png, 2]), {
+          headers: { 'content-type': 'image/png' },
+        }),
+      )
+      const remote = await call('save_item', {
+        description: 'Remote',
+        imageUrl: 'https://8.8.8.8/other.png',
+        type: 'image',
+      })
+      expect(remote.isError).not.toBe(true)
+      expect(JSON.parse(remote.content[0]?.text ?? '')).toMatchObject({
+        duplicate: false,
+        item: {
+          origin: 'agent',
+          sourceUrl: 'https://8.8.8.8/other.png',
+          status: 'inbox',
+        },
+      })
+    } finally {
+      network.mockRestore()
+    }
+    const edited = await call('update_item', {
+      creditAuthor: 'New artist',
+      creditUrl: 'https://example.com/new',
+      description: 'Updated',
+      id: saved.item.id,
+      tags: ['Edited'],
+      title: 'New title',
+    })
+    expect(JSON.parse(edited.content[0]?.text ?? '')).toMatchObject({
+      credit: { label: 'New artist' },
+      description: 'Updated',
+      note: 'Keep',
+      origin: 'agent',
+      status: 'inbox',
+      tags: ['edited'],
+      title: 'New title',
+    })
+    for (const args of [
+      { ...input, description: undefined },
+      { ...input, description: '   ' },
+      { ...input, status: 'published' },
+      { ...input, origin: 'manual' },
+      { ...input, imageBase64: '!!!!' },
+      { ...input, imageBase64: Buffer.from('not an image').toString('base64') },
+      { description: 'Private', imageUrl: 'http://127.0.0.1/x', type: 'image' },
+    ]) {
+      // biome-ignore lint/performance/noAwaitInLoops: independently verify each invalid tool call
+      expect((await call('save_item', args)).isError).toBe(true)
+    }
+    expect(
+      (await call('save_item', { note: 'test', type: 'note' })).content[0]
+        ?.text,
+    ).toContain('description')
+    expect(
+      (await call('update_item', { id: saved.item.id, status: 'published' }))
+        .isError,
+    ).toBe(true)
+    expect(
+      (await call('update_item', { id: 'missing', note: 'x' })).isError,
+    ).toBe(true)
+    expect(
+      state.sqlite
+        .prepare('SELECT status, origin, published_at FROM items')
+        .get(),
+    ).toMatchObject({ origin: 'agent', published_at: null, status: 'inbox' })
   })
 })

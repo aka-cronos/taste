@@ -4,6 +4,7 @@ import {
   forgetDiscardsStatement,
   type SourceKey,
 } from '@/lib/items/discards'
+import { editItemSchema } from '@/lib/items/edit-input'
 import { publicUrl } from '@/lib/items/fetch-url'
 import { type ItemInput, itemInputSchema } from '@/lib/items/input'
 import {
@@ -18,7 +19,11 @@ import {
   normalizeTagName,
 } from '@/lib/items/model'
 
-export type IngestInput = Omit<ItemInput, 'image'> & { image?: StoredImage }
+export type IngestInput = Omit<ItemInput, 'image'> & {
+  image?: StoredImage
+  creditAuthor?: string
+  creditUrl?: string
+}
 
 interface SavedItem {
   description: string
@@ -47,9 +52,18 @@ function validateInput(input: IngestInput) {
   if (!result.success) {
     throw new Error(result.error.issues[0]?.message)
   }
+  creditValue('creditAuthor', input.creditAuthor)
+  creditValue('creditUrl', input.creditUrl)
   if (input.image) {
     validateImage(input.image)
   }
+}
+
+function creditValue(
+  field: 'creditAuthor' | 'creditUrl',
+  value: string | undefined,
+) {
+  return editItemSchema.shape[field].parse(value ?? '') || null
 }
 
 async function originalImageHash(
@@ -140,10 +154,10 @@ export async function ingestItem(
     const now = Date.now()
     const statements = [
       db
-        .prepare(`INSERT INTO items (id, type, title, description, note, source_url, origin, status, content_hash, image_key, created_at, updated_at, published_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (
-        SELECT 1 FROM items WHERE (?14 IS NOT NULL AND source_url = ?14)
-          OR (?15 IS NOT NULL AND content_hash = ?15)
+        .prepare(`INSERT INTO items (id, type, title, description, note, source_url, origin, status, content_hash, image_key, created_at, updated_at, published_at, credit_author, credit_url)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (
+        SELECT 1 FROM items WHERE (?16 IS NOT NULL AND source_url = ?16)
+          OR (?17 IS NOT NULL AND content_hash = ?17)
       )`)
         .bind(
           id,
@@ -159,6 +173,8 @@ export async function ingestItem(
           now,
           now,
           input.status === 'published' ? now : null,
+          creditValue('creditAuthor', input.creditAuthor),
+          creditValue('creditUrl', input.creditUrl),
           sourceUrl,
           hash,
         ),
