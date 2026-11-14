@@ -89,6 +89,61 @@ describe('MCP writes', () => {
     expect(await listInboxItems(db)).toHaveLength(0)
   })
 
+  it('keeps note citations separate from URL-based ingest identity', async () => {
+    const { db, sqlite } = createTestD1()
+    const sourceUrl = 'https://example.com/post'
+    insertItem(sqlite, { id: 'published', sourceUrl, tags: ['original'] })
+    const note = {
+      description: 'A note',
+      note: 'My own observation',
+      tags: ['note'],
+      type: 'note',
+    }
+    const invalid = saveItemSchema.safeParse({ ...note, sourceUrl })
+    expect(invalid.success).toBe(false)
+    if (!invalid.success) {
+      expect(invalid.error.issues[0]?.message).toContain('Use creditUrl')
+    }
+    const saved = await saveMcpItem(
+      { bucket, db },
+      saveItemSchema.parse({ ...note, creditUrl: sourceUrl }),
+    )
+    expect(saved).toMatchObject({
+      duplicate: false,
+      item: {
+        credit: { url: sourceUrl },
+        note: 'My own observation',
+        sourceUrl: null,
+        type: 'note',
+      },
+    })
+    const link = await saveMcpItem(
+      { bucket, db },
+      saveItemSchema.parse({ description: 'Post', sourceUrl, type: 'link' }),
+    )
+    expect(link).toMatchObject({
+      duplicate: true,
+      item: { id: 'published', tags: ['original'] },
+    })
+    const otherUrl = 'https://example.com/other'
+    await saveMcpItem(
+      { bucket, db },
+      saveItemSchema.parse({ ...note, creditUrl: otherUrl }),
+    )
+    const otherLink = await saveMcpItem(
+      { bucket, db },
+      saveItemSchema.parse({
+        description: 'Other post',
+        sourceUrl: otherUrl,
+        type: 'link',
+      }),
+    )
+    expect(otherLink).toMatchObject({
+      duplicate: false,
+      item: { sourceUrl: otherUrl, type: 'link' },
+    })
+  })
+
   it('requires exactly one image source, its MIME type for base64, and bounds inputs', () => {
     const base = { description: 'Reference', type: 'image' }
     for (const extra of [

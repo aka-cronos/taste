@@ -80,7 +80,9 @@ request write access.
 - `save_item` requires `type` (`image`, `link`, or `note`) and a non-empty
   `description`. For a post, pass `sourceUrl` with `type: "link"`. For an image,
   pass either `imageUrl` or raw `imageBase64` plus `imageContentType` (PNG, JPEG,
-  GIF, or WebP, up to 10 MB). For a note, pass `note`.
+  GIF, or WebP, up to 10 MB). For a note, pass `note`; cite sources with
+  `creditUrl`. Notes reject `sourceUrl` so they cannot collide with saved links
+  or images.
 - Optional metadata: `title`, `tags`, `creditAuthor`, `creditUrl`, and `note`.
   New items always enter the inbox with agent origin. Duplicates return
   `duplicate: true` and the existing item, merging tags while preserving its

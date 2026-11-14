@@ -34,7 +34,11 @@ export const saveItemSchema = z
     imageContentType: z.enum(IMAGE_TYPES).optional(),
     imageUrl: url.optional(),
     note: text.optional(),
-    sourceUrl: url.optional(),
+    sourceUrl: url
+      .optional()
+      .describe(
+        'Source identity for links and images only. For note citations use creditUrl.',
+      ),
     tags: editItemSchema.shape.tags.optional(),
     title: text.optional(),
     type: z.enum(['image', 'link', 'note']),
@@ -54,6 +58,9 @@ export const saveItemSchema = z
     }
     if (input.type === 'link' && !input.sourceUrl) {
       invalid('Provide sourceUrl for a link.')
+    }
+    if (input.type === 'note' && input.sourceUrl) {
+      invalid('Notes cannot have sourceUrl. Use creditUrl to cite a source.')
     }
     if (input.type === 'note' && !input.note) {
       invalid('Write a note first.')
