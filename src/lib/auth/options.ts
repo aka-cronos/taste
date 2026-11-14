@@ -1,11 +1,19 @@
+import { cimd } from '@better-auth/cimd'
+import { mcp } from '@better-auth/mcp'
 import type { BetterAuthOptions } from 'better-auth'
-import { oAuthProxy } from 'better-auth/plugins'
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from 'better-auth/api'
+import { jwt, oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import {
   isOwnerEmail,
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
+import { fetchClientMetadataResource } from '@/lib/mcp/metadata-fetch'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
 
@@ -46,6 +54,7 @@ export function createAuthOptions(env: AuthEnv) {
         protocol: 'https' as const,
       },
       plugins: [
+        ...mcpPlugins(env),
         oAuthProxy({ productionURL: proxyUrl, secret: env.BETTER_AUTH_SECRET }),
         tanstackStartCookies(),
       ],
@@ -60,8 +69,24 @@ function baseAuthOptions(env: AuthEnv) {
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,
     database: env.DB,
+    disabledPaths: ['/token'],
+    hooks: {
+      before: createAuthMiddleware(async ctx => {
+        if (
+          ctx.path === '/oauth2/authorize' ||
+          ctx.path === '/oauth2/consent'
+        ) {
+          const session = await getSessionFromCtx(ctx, {
+            disableCookieCache: true,
+          })
+          if (session && !isOwnerEmail(session.user.email, env.OWNER_EMAIL)) {
+            throw new APIError('FORBIDDEN', { message: NOT_AUTHORIZED_MESSAGE })
+          }
+        }
+      }),
+    },
     // Must stay last so it can set the cookies of the other plugins' responses.
-    plugins: [tanstackStartCookies()],
+    plugins: [...mcpPlugins(env), tanstackStartCookies()],
     secret: env.BETTER_AUTH_SECRET,
     session: {
       // Reading the session from a signed cookie skips a D1 query on most
@@ -93,4 +118,25 @@ function baseAuthOptions(env: AuthEnv) {
       },
     },
   } satisfies BetterAuthOptions
+}
+
+function mcpPlugins(env: AuthEnv) {
+  return [
+    jwt({ disableSettingJwtHeader: true }),
+    mcp({
+      allowDynamicClientRegistration: false,
+      consentPage: '/mcp/authorize',
+      customAccessTokenClaims: ({ user }) => {
+        if (!isOwnerEmail(user?.email, env.OWNER_EMAIL)) {
+          throw new APIError('FORBIDDEN', { message: NOT_AUTHORIZED_MESSAGE })
+        }
+        return {}
+      },
+      grantTypes: ['authorization_code', 'refresh_token'],
+      loginPage: '/mcp/authorize',
+      resource: new URL('/mcp', env.BETTER_AUTH_URL).href,
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:read'],
+    }),
+    cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
+  ]
 }

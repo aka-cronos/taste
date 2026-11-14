@@ -178,3 +178,5 @@ describe('Preview OAuth proxy', () => {
     )
   })
 })
+
+vi.mock('cloudflare:sockets', () => ({ connect: vi.fn() }))
