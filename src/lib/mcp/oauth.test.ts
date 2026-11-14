@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { getMigrations } from 'better-auth/db/migration'
 import { describe, expect, it, vi } from 'vitest'
+import { toIssuerDiscovery } from '@/lib/auth/discovery'
 import { createAuthOptions } from '@/lib/auth/options'
 import { protectedMcp } from '@/lib/mcp/handler'
 import { createTestD1 } from '@/test/d1'
@@ -185,6 +186,21 @@ describe('private MCP OAuth', () => {
     expect(document.registration_endpoint).toBe(
       `${ORIGIN}/api/auth/oauth2/register`,
     )
+  })
+  it.each([
+    '/.well-known/oauth-authorization-server',
+    '/.well-known/openid-configuration',
+    '/.well-known/openid-configuration/api/auth',
+  ])('serves issuer discovery at root alias %s', async path => {
+    const { auth } = await setup()
+    const response = await auth.handler(
+      toIssuerDiscovery(new Request(`${ORIGIN}${path}`)),
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      issuer: `${ORIGIN}/api/auth`,
+      registration_endpoint: `${ORIGIN}/api/auth/oauth2/register`,
+    })
   })
   it('completes PKCE consent and calls all three tools with private search and absolute images', async () => {
     const state = await setup()
