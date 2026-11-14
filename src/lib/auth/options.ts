@@ -68,6 +68,7 @@ export function createAuthOptions(env: AuthEnv, request?: Request) {
 
 function baseAuthOptions(env: AuthEnv) {
   return {
+    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     appName: 'Taste',
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,
@@ -90,6 +91,7 @@ function baseAuthOptions(env: AuthEnv) {
     },
     // Must stay last so it can set the cookies of the other plugins' responses.
     plugins: [...mcpPlugins(env), tanstackStartCookies()],
+    rateLimit: { enabled: true, storage: 'database' },
     secret: env.BETTER_AUTH_SECRET,
     session: {
       // Reading the session from a signed cookie skips a D1 query on most
