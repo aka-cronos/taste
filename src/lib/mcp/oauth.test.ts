@@ -5,13 +5,9 @@ import { getMigrations } from 'better-auth/db/migration'
 import { describe, expect, it, vi } from 'vitest'
 import { createAuthOptions } from '@/lib/auth/options'
 import { protectedMcp } from '@/lib/mcp/handler'
-import { fetchClientMetadataResource } from '@/lib/mcp/metadata-fetch'
 import { createTestD1 } from '@/test/d1'
 import { insertItem } from '@/test/items'
 
-vi.mock('@/lib/mcp/metadata-fetch', () => ({
-  fetchClientMetadataResource: vi.fn(),
-}))
 const ORIGIN = 'https://taste.example.com'
 const OWNER = 'owner@example.com'
 
@@ -68,15 +64,20 @@ async function setup(origin = ORIGIN, preview = false) {
     .map(value => value.split(';')[0])
     .join('; ')
   const headers = new Headers({ cookie, origin })
-  const client = await auth.api.createOAuthClient({
-    body: {
-      client_name: 'Test MCP',
-      redirect_uris: ['https://client.example.com/callback'],
-      scope: 'mcp:read offline_access',
-      token_endpoint_auth_method: 'none',
-    },
-    headers,
-  })
+  const registration = await auth.handler(
+    new Request(`${origin}/api/auth/oauth2/register`, {
+      body: JSON.stringify({
+        client_name: 'Test MCP',
+        redirect_uris: ['https://client.example.com/callback'],
+        scope: 'mcp:read offline_access',
+        token_endpoint_auth_method: 'none',
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    }),
+  )
+  expect(registration.status, await registration.clone().text()).toBe(201)
+  const client = (await registration.json()) as { client_id: string }
   const handle = protectedMcp(auth, db, OWNER, origin)
   return { auth, client, db, handle, headers, origin, sqlite }
 }
@@ -157,7 +158,7 @@ function rpc(
 }
 
 describe('private MCP OAuth', () => {
-  it('challenges anonymous calls and serves both discovery documents with DCR off', async () => {
+  it('challenges anonymous calls and serves both discovery documents with DCR enabled and CIMD absent', async () => {
     const { auth, handle } = await setup()
     const response = await handle(
       new Request(`${ORIGIN}/mcp`, { method: 'POST' }),
@@ -180,8 +181,10 @@ describe('private MCP OAuth', () => {
       client_id_metadata_document_supported: boolean
       registration_endpoint?: string
     }
-    expect(document.client_id_metadata_document_supported).toBe(true)
-    expect(document.registration_endpoint).toBeUndefined()
+    expect(document.client_id_metadata_document_supported).not.toBe(true)
+    expect(document.registration_endpoint).toBe(
+      `${ORIGIN}/api/auth/oauth2/register`,
+    )
   })
   it('completes PKCE consent and calls all three tools with private search and absolute images', async () => {
     const state = await setup()
@@ -237,23 +240,49 @@ describe('private MCP OAuth', () => {
       (await state.handle(rpc(tokens.access_token, 'tools/list'))).status,
     ).toBe(403)
   })
-  it('discovers a CIMD client and starts owner consent without DCR', async () => {
+  it('does not fetch URL-shaped client identifiers or allow registration to grant write scopes', async () => {
     const state = await setup()
-    const clientId = 'https://client.example.com/metadata.json'
-    vi.mocked(fetchClientMetadataResource).mockResolvedValue(
-      Response.json({
-        client_id: clientId,
-        client_name: 'CIMD client',
-        redirect_uris: ['https://client.example.com/callback'],
-        token_endpoint_auth_method: 'none',
+    const network = vi.spyOn(globalThis, 'fetch')
+    try {
+      const query = new URLSearchParams({
+        client_id: 'https://claude.ai/oauth/mcp-oauth-client-metadata',
+        code_challenge: 'a'.repeat(43),
+        code_challenge_method: 'S256',
+        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+        response_type: 'code',
+        scope: 'mcp:read',
+      })
+      const response = await state.auth.handler(
+        new Request(`${ORIGIN}/api/auth/oauth2/authorize?${query}`),
+      )
+      expect(response.status).toBe(302)
+      expect(
+        new URL(response.headers.get('location') ?? '').searchParams.get(
+          'error',
+        ),
+      ).toBe('invalid_client')
+      expect(network).not.toHaveBeenCalled()
+    } finally {
+      network.mockRestore()
+    }
+    const registration = await state.auth.handler(
+      new Request(`${ORIGIN}/api/auth/oauth2/register`, {
+        body: JSON.stringify({
+          client_name: 'Overprivileged client',
+          redirect_uris: ['https://client.example.com/callback'],
+          scope: 'mcp:write',
+          token_endpoint_auth_method: 'none',
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
       }),
     )
+    expect(registration.status).toBe(400)
+  })
+  it('requires PKCE before authorizing a dynamically registered client', async () => {
+    const state = await setup()
     const query = new URLSearchParams({
-      client_id: clientId,
-      code_challenge: createHash('sha256')
-        .update('a'.repeat(43))
-        .digest('base64url'),
-      code_challenge_method: 'S256',
+      client_id: state.client.client_id,
       redirect_uri: 'https://client.example.com/callback',
       resource: `${ORIGIN}/mcp`,
       response_type: 'code',
@@ -261,14 +290,20 @@ describe('private MCP OAuth', () => {
     })
     const response = await state.auth.handler(
       new Request(`${ORIGIN}/api/auth/oauth2/authorize?${query}`, {
-        headers: state.headers,
+        headers: new Headers({
+          ...Object.fromEntries(state.headers),
+          accept: 'application/json',
+        }),
       }),
     )
-    expect(response.status).toBe(302)
-    expect(
-      new URL(response.headers.get('location') ?? '', ORIGIN).pathname,
-    ).toBe('/mcp/authorize')
-    expect(fetchClientMetadataResource).toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    const result = (await response.json()) as { url: string }
+    const callback = new URL(result.url)
+    expect(callback.searchParams.get('error')).toBe('invalid_request')
+    expect(callback.searchParams.get('error_description')).toContain(
+      'pkce is required',
+    )
+    expect(callback.searchParams.has('code')).toBe(false)
   })
   it.each([
     'https://feature-one-taste.example.workers.dev',
