@@ -71,11 +71,14 @@ empty to omit the link. Locally, it can be overridden in `.dev.vars`.
 
 ## MCP writes
 
-Connect an MCP client to `/mcp` and complete owner OAuth consent. Read-only
-clients use `mcp:read`. To save and edit references, explicitly request both
-`mcp:read` and `mcp:write` during registration and authorization; write access
-is never granted by default. Reconnect existing clients with those scopes to
-request write access.
+Connect an MCP client to `/mcp` and complete owner OAuth consent. The initial
+authentication challenge requests `mcp:read mcp:write`, and client registration
+defaults to `mcp:read mcp:write offline_access`. The owner must explicitly
+approve read and write access before a token can save or edit references.
+Clients can still request only `mcp:read` for read-only access. Existing tokens
+keep their original permissions; reconnect existing clients to request both
+scopes. If a client reuses a saved read-only scope, recreate its connection or
+configure it to request `mcp:read mcp:write` explicitly.
 
 - `save_item` requires `type` (`image`, `link`, or `note`) and a non-empty
   `description`. For a post, pass `sourceUrl` with `type: "link"`. For an image,

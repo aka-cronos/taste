@@ -131,9 +131,12 @@ function mcpPlugins(env: AuthEnv) {
     mcp({
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
-      clientRegistrationAllowedScopes: ['mcp:write'],
       clientRegistrationDefaultApplicationType: 'infer',
-      clientRegistrationDefaultScopes: ['mcp:read', 'offline_access'],
+      clientRegistrationDefaultScopes: [
+        'mcp:read',
+        'mcp:write',
+        'offline_access',
+      ],
       clientRegistrationRequirePKCE: true,
       consentPage: '/mcp/authorize',
       customAccessTokenClaims: ({ user }) => {
