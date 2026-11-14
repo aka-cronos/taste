@@ -96,3 +96,20 @@ configure it to request `mcp:read mcp:write` explicitly.
 
 Neither write tool can change visibility, origin, or source, publish an item,
 or delete one. Read-only tokens cannot discover or call write tools.
+
+## Agent guidance
+
+Taste has no AI of its own: the connected agent tags and describes what it
+saves. Guidance comes in two layers.
+
+- **MCP** (any client, Grok included): the server instructions and tool
+  descriptions teach agents to call `list_tags` first, reuse existing tags,
+  write rich visual descriptions and always pass credit. The server also
+  offers prompts: `find_references` for every token, plus `curate_likes` and
+  `save_url` when the token has write access.
+- **Skill** (Claude Code, Codex and other skill-aware agents): install the
+  `taste` skill for longer flows (reviewing likes, saving URLs, re-tagging):
+
+  ```sh
+  npx skills add aka-cronos/taste
+  ```
