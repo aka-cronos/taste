@@ -10,7 +10,13 @@ async function handle({ request }: { request: Request }) {
   if (typeof baseURL !== 'string') {
     throw new Error('MCP requires a resolved authorization origin.')
   }
-  return protectedMcp(auth, env.DB, env.OWNER_EMAIL, baseURL)(request)
+  return protectedMcp(
+    auth,
+    env.DB,
+    env.OWNER_EMAIL,
+    baseURL,
+    env.BUCKET,
+  )(request)
 }
 
 export const Route = createFileRoute('/mcp')({

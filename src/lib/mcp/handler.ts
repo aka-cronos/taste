@@ -7,7 +7,7 @@ import {
 } from 'better-auth/oauth2'
 import { isOwnerEmail } from '@/lib/auth/owner'
 import type { getAuth } from '@/lib/auth/server'
-import { createReadTools } from '@/lib/mcp/tools'
+import { createTools } from '@/lib/mcp/tools'
 
 type McpAuth = {
   $context: Promise<{ internalAdapter: DpopReplayReservations }>
@@ -18,6 +18,7 @@ export function protectedMcp(
   db: D1Database,
   ownerEmail: string,
   baseURL: string,
+  bucket?: Pick<R2Bucket, 'put' | 'delete'>,
 ) {
   const resource = new URL('/mcp', baseURL).href
   const challenge = `Bearer resource_metadata="${new URL('/.well-known/oauth-protected-resource/mcp', baseURL).href}", scope="mcp:read"`
@@ -87,6 +88,10 @@ export function protectedMcp(
     if (request.method !== 'POST') {
       return new Response(null, { headers: { Allow: 'POST' }, status: 405 })
     }
-    return createReadTools(db, baseURL).fetch(request)
+    return createTools(
+      db,
+      baseURL,
+      scopes.has('mcp:write') && bucket ? { bucket, db } : undefined,
+    ).fetch(request)
   }
 }

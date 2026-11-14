@@ -131,6 +131,7 @@ function mcpPlugins(env: AuthEnv) {
     mcp({
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
+      clientRegistrationAllowedScopes: ['mcp:write'],
       clientRegistrationDefaultApplicationType: 'infer',
       clientRegistrationDefaultScopes: ['mcp:read', 'offline_access'],
       clientRegistrationRequirePKCE: true,
@@ -145,7 +146,14 @@ function mcpPlugins(env: AuthEnv) {
       loginPage: '/mcp/authorize',
       rateLimit: { register: { max: 5, window: 60 } },
       resource: new URL('/mcp', env.BETTER_AUTH_URL).href,
-      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:read'],
+      scopes: [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'mcp:read',
+        'mcp:write',
+      ],
     }),
   ]
 }
