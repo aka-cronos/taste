@@ -17,30 +17,44 @@ const url = editItemSchema.shape.creditUrl.refine(
 
 export const saveItemSchema = z
   .strictObject({
-    creditAuthor: editItemSchema.shape.creditAuthor.optional(),
-    creditUrl: editItemSchema.shape.creditUrl.optional(),
+    creditAuthor: editItemSchema.shape.creditAuthor
+      .optional()
+      .describe('Creator’s name or handle, e.g. "@studio".'),
+    creditUrl: editItemSchema.shape.creditUrl
+      .optional()
+      .describe('Creator’s profile or the original work.'),
     description: z
       .string({ error: 'A description is required.' })
       .trim()
       .min(1, 'A description is required.')
-      .max(10_000),
+      .max(10_000)
+      .describe(
+        'Rich visual description: subject, style, palette, medium, composition and why it is worth keeping.',
+      ),
     imageBase64: z
       .string()
       .min(1)
       .max(MAX_BASE64_LENGTH)
       .regex(BASE64, 'Provide a valid base64 image.')
       .refine(value => value.length % 4 === 0, 'Provide a valid base64 image.')
-      .optional(),
+      .optional()
+      .describe('Raw base64 image bytes, without a data: prefix.'),
     imageContentType: z.enum(IMAGE_TYPES).optional(),
-    imageUrl: url.optional(),
-    note: text.optional(),
+    imageUrl: url
+      .optional()
+      .describe('Largest available image URL. Taste stores a copy.'),
+    note: text
+      .optional()
+      .describe('The owner’s own note, or the body of a note item.'),
     sourceUrl: url
       .optional()
       .describe(
-        'Source identity for links and images only. For note citations use creditUrl.',
+        'Post or page the reference came from; duplicates are detected by it. Links and images only; for note citations use creditUrl.',
       ),
-    tags: editItemSchema.shape.tags.optional(),
-    title: text.optional(),
+    tags: editItemSchema.shape.tags
+      .optional()
+      .describe('3-8 lowercase tags, reusing existing ones from list_tags.'),
+    title: text.optional().describe('Short title; links fetch one if omitted.'),
     type: z.enum(['image', 'link', 'note']),
   })
   .superRefine((input, ctx) => {
