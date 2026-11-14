@@ -70,6 +70,6 @@ export function createReadTools(db: D1Database, origin: string) {
       )
       return server
     },
-    { legacy: 'reject' },
+    { legacy: 'stateless' },
   )
 }

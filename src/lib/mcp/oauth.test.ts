@@ -240,6 +240,107 @@ describe('private MCP OAuth', () => {
       (await state.handle(rpc(tokens.access_token, 'tools/list'))).status,
     ).toBe(403)
   })
+  it('serves the legacy handshake and all read tools behind the same OAuth boundary', async () => {
+    const state = await setup()
+    insertItem(state.sqlite, {
+      id: 'legacy-inbox',
+      status: 'inbox',
+      tags: ['warm'],
+      type: 'image',
+    })
+    const tokens = await tokenFor(state)
+    const legacyRequest = (
+      method: string,
+      params: object = {},
+      notification = false,
+    ) =>
+      new Request(`${ORIGIN}/mcp`, {
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          ...(notification ? {} : { id: 1 }),
+          method,
+          params,
+        }),
+        headers: {
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${tokens.access_token}`,
+          'content-type': 'application/json',
+          ...(method === 'initialize'
+            ? {}
+            : { 'MCP-Protocol-Version': '2025-11-25' }),
+        },
+        method: 'POST',
+      })
+    const readResult = async (response: Response) => {
+      expect(response.status).toBe(200)
+      expect(response.headers.has('mcp-session-id')).toBe(false)
+      const text = await response.text()
+      const data = response.headers
+        .get('content-type')
+        ?.includes('text/event-stream')
+        ? text
+            .split('\n')
+            .find(line => line.startsWith('data: '))
+            ?.slice(6)
+        : text
+      return JSON.parse(data ?? '') as {
+        result: {
+          protocolVersion?: string
+          tools?: { name: string }[]
+          isError?: boolean
+          content?: { text: string }[]
+        }
+      }
+    }
+    const initialization = await readResult(
+      await state.handle(
+        legacyRequest('initialize', {
+          capabilities: {},
+          clientInfo: { name: 'Claude-compatible client', version: '1.0.0' },
+          protocolVersion: '2025-11-25',
+        }),
+      ),
+    )
+    expect(initialization.result.protocolVersion).toBe('2025-11-25')
+    expect(
+      (await state.handle(legacyRequest('notifications/initialized', {}, true)))
+        .status,
+    ).toBe(202)
+    const listed = await readResult(
+      await state.handle(legacyRequest('tools/list')),
+    )
+    expect(listed.result.tools?.map(tool => tool.name).sort()).toEqual([
+      'get_item',
+      'list_tags',
+      'search_items',
+    ])
+    for (const [name, args] of [
+      ['list_tags', {}],
+      ['search_items', { status: 'inbox' }],
+      ['get_item', { id: 'legacy-inbox' }],
+    ] as const) {
+      // biome-ignore lint/performance/noAwaitInLoops: exercise each legacy tool request separately
+      const response = await state.handle(
+        legacyRequest('tools/call', { arguments: args, name }),
+      )
+      const payload = await readResult(response)
+      expect(payload.result.isError).not.toBe(true)
+      expect(payload.result.content?.[0]?.text).toContain(
+        name === 'list_tags' ? 'warm' : `${ORIGIN}/media/`,
+      )
+    }
+    const anonymous = legacyRequest('initialize', {
+      capabilities: {},
+      clientInfo: { name: 'Anonymous', version: '1' },
+      protocolVersion: '2025-11-25',
+    })
+    anonymous.headers.delete('authorization')
+    expect((await state.handle(anonymous)).status).toBe(401)
+    state.sqlite
+      .prepare('UPDATE user SET email = ?')
+      .run('former-owner@example.com')
+    expect((await state.handle(legacyRequest('tools/list'))).status).toBe(403)
+  })
   it('does not fetch URL-shaped client identifiers or allow registration to grant write scopes', async () => {
     const state = await setup()
     const network = vi.spyOn(globalThis, 'fetch')
