@@ -11,6 +11,7 @@ import { insertItem } from '@/test/items'
 
 const ORIGIN = 'https://taste.example.com'
 const OWNER = 'owner@example.com'
+const CHALLENGE_SCOPE = /scope="(?<scope>[^"]+)"/u
 
 async function setup(origin = ORIGIN, preview = false, write = false) {
   const { db, sqlite } = createTestD1()
@@ -109,6 +110,8 @@ async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
   )
   expect(response.status).toBe(302)
   const consent = new URL(response.headers.get('location') ?? '', state.origin)
+  expect(consent.pathname).toBe('/mcp/authorize')
+  expect(consent.searchParams.get('scope')).toBe(state.scope)
   const approval = await state.auth.api.oauth2Consent({
     body: { accept: true, oauth_query: consent.search.slice(1) },
     headers: state.headers,
@@ -175,6 +178,9 @@ describe('private MCP OAuth', () => {
     expect(response.headers.get('www-authenticate')).toContain(
       `resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`,
     )
+    expect(response.headers.get('www-authenticate')).toContain(
+      'scope="mcp:read mcp:write"',
+    )
     const metadata = await auth.handler(
       new Request(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
     )
@@ -208,6 +214,53 @@ describe('private MCP OAuth', () => {
       issuer: `${ORIGIN}/api/auth`,
       registration_endpoint: `${ORIGIN}/api/auth/oauth2/register`,
     })
+  })
+  it('requests write consent through the default client connection flow', async () => {
+    const state = await setup()
+    const challenge = await state.handle(
+      new Request(`${ORIGIN}/mcp`, { method: 'POST' }),
+    )
+    const scope = challenge.headers
+      .get('www-authenticate')
+      ?.match(CHALLENGE_SCOPE)?.groups?.scope
+    expect(scope).toBe('mcp:read mcp:write')
+    const registration = await state.auth.handler(
+      new Request(`${ORIGIN}/api/auth/oauth2/register`, {
+        body: JSON.stringify({
+          client_name: 'Default MCP',
+          redirect_uris: ['https://client.example.com/callback'],
+          token_endpoint_auth_method: 'none',
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      }),
+    )
+    expect(registration.status).toBe(201)
+    const client = (await registration.json()) as {
+      client_id: string
+      scope: string
+    }
+    expect(client.scope.split(' ').sort()).toEqual([
+      'mcp:read',
+      'mcp:write',
+      'offline_access',
+    ])
+    const tokens = await tokenFor({ ...state, client, scope: scope ?? '' })
+    const list = await state.handle(rpc(tokens.access_token, 'tools/list'))
+    expect(list.status).toBe(200)
+    expect(
+      (
+        (await list.json()) as { result: { tools: { name: string }[] } }
+      ).result.tools
+        .map(tool => tool.name)
+        .sort(),
+    ).toEqual([
+      'get_item',
+      'list_tags',
+      'save_item',
+      'search_items',
+      'update_item',
+    ])
   })
   it('completes PKCE consent and calls all three tools with private search and absolute images', async () => {
     const state = await setup()

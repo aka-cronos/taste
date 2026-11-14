@@ -21,7 +21,7 @@ export function protectedMcp(
   bucket?: Pick<R2Bucket, 'put' | 'delete'>,
 ) {
   const resource = new URL('/mcp', baseURL).href
-  const challenge = `Bearer resource_metadata="${new URL('/.well-known/oauth-protected-resource/mcp', baseURL).href}", scope="mcp:read"`
+  const challenge = `Bearer resource_metadata="${new URL('/.well-known/oauth-protected-resource/mcp', baseURL).href}", scope="mcp:read mcp:write"`
   return async (request: Request) => {
     let claims: Awaited<ReturnType<typeof verifyJwsAccessToken>>
     try {
