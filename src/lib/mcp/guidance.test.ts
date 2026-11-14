@@ -5,6 +5,8 @@ import { createTestD1 } from '@/test/d1'
 
 const ORIGIN = 'https://taste.example.com'
 const PROTOCOL = '2026-07-28'
+const MULTI_IMAGE_RULE =
+  'extra images from that post omit it and set creditUrl to the post'
 const SAVE_URL_TEXT = /https:\/\/x\.com\/a\/1[\s\S]*Grid study/u
 
 function rpc(method: string, params: object = {}) {
@@ -115,6 +117,18 @@ describe('MCP agent guidance', () => {
     expect(
       await text('save_url', { note: 'Grid study', url: 'https://x.com/a/1' }),
     ).toMatch(SAVE_URL_TEXT)
+    for (const name of ['curate_likes', 'save_url']) {
+      // biome-ignore lint/performance/noAwaitInLoops: check each prompt separately
+      expect(await text(name, { url: 'https://x.com/a/1' })).toContain(
+        MULTI_IMAGE_RULE,
+      )
+    }
+    const { tools } = await call<{
+      tools: { name: string; description: string }[]
+    }>(true, 'tools/list')
+    expect(
+      tools.find(tool => tool.name === 'save_item')?.description,
+    ).toContain('extra images from that post omit it')
     expect(await text('find_references', { query: 'warm posters' })).toContain(
       'warm posters',
     )

@@ -118,7 +118,7 @@ export function createTools(
               readOnlyHint: false,
             },
             description:
-              'Save a reference to the owner’s inbox for review. Requires a rich visual description (subject, style, palette, medium, composition); reuse tags from list_tags and always pass credit. Images: type "image" with imageUrl (or raw imageBase64 plus imageContentType) and sourceUrl for the post it came from. Pages: type "link" with sourceUrl. Notes: type "note" with note. Duplicates (same sourceUrl or image) return duplicate: true and the existing item, merging tags only. Sources the owner discarded are rejected; skip them.',
+              'Save a reference to the owner’s inbox for review. Requires a rich visual description (subject, style, palette, medium, composition); reuse tags from list_tags and always pass credit. Images: type "image" with imageUrl (or raw imageBase64 plus imageContentType) and sourceUrl for the post it came from; only the first image from a post gets sourceUrl, extra images from that post omit it and set creditUrl to the post. Pages: type "link" with sourceUrl. Notes: type "note" with note. Duplicates (same sourceUrl or image) return duplicate: true and the existing item, merging tags only. Sources the owner discarded are rejected; skip them.',
             inputSchema: saveItemSchema,
           },
           async input => result(await saveMcpItem(writes, input), origin),

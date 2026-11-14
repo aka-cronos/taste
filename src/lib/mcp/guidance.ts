@@ -72,7 +72,7 @@ export function registerWritePrompts(server: McpServer) {
 1. Call list_tags to learn my vocabulary.
 2. Read my ${limit || '50'} most recent likes from ${source || 'X'}.
 3. Keep only visual references: art, design, photography, typography, architecture, interfaces and similar. Skip news, jokes, threads without visuals and anything already saved (check with search_items when unsure).
-4. Save each keeper with save_item following the server instructions: rich visual description, existing tags first, credit to the original author, imageUrl for each image and sourceUrl for the post.
+4. Save each keeper with save_item following the server instructions: rich visual description, existing tags first, credit to the original author, imageUrl for each image. Taste deduplicates by sourceUrl, so only the first image from a post gets sourceUrl; extra images from that post omit it and set creditUrl to the post.
 5. Finish with a short summary: how many you reviewed, saved, skipped as duplicates and skipped as off-taste.`),
   )
   server.registerPrompt(
@@ -94,7 +94,7 @@ export function registerWritePrompts(server: McpServer) {
 
 1. Open the URL and look at it. Find the creator and the best quality image.
 2. Call list_tags to reuse my vocabulary.
-3. Call save_item following the server instructions. A post with images: one image item per image worth keeping. A page: type "link". A direct image URL: type "image" with imageUrl.${note ? ' Pass my note as note.' : ''}
+3. Call save_item following the server instructions. A post with images: one image item per image worth keeping. Taste deduplicates by sourceUrl, so only the first image from a post gets sourceUrl; extra images from that post omit it and set creditUrl to the post. A page: type "link". A direct image URL: type "image" with imageUrl.${note ? ' Pass my note as note.' : ''}
 4. Tell me what you saved and with which tags, or that it was a duplicate.`),
   )
 }

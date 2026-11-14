@@ -49,7 +49,7 @@ export const saveItemSchema = z
     sourceUrl: url
       .optional()
       .describe(
-        'Post or page the reference came from; duplicates are detected by it. Links and images only; for note citations use creditUrl.',
+        'Post or page the reference came from; duplicates are detected by it, so set it on only one image per post and cite the post in creditUrl for the rest. Links and images only; for note citations use creditUrl.',
       ),
     tags: editItemSchema.shape.tags
       .optional()
