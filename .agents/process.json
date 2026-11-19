@@ -27,6 +27,9 @@
   "lowRiskLane": false,
   "environments": {
     "staging": null,
-    "production": null
+    "production": {
+      "url": "https://taste.akacronos.com",
+      "deploy": "manual"
+    }
   }
 }

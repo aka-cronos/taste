@@ -12,7 +12,9 @@ verifies changes; it holds no Cloudflare API token.
    Cloudflare GitHub App for this repository and select **aka-cronos/taste**.
 3. Set the root directory to the repository root, the production branch to `main`,
    the build command to `pnpm run build`, and the deploy command to
-   `pnpm exec wrangler deploy`. Keep the Worker name `taste` to match `wrangler.jsonc`.
+   `pnpm exec wrangler versions upload`, so a merge uploads a new version
+   without serving it; the owner deploys it by hand (see
+   [environments](agents/environments.md)). Keep the Worker name `taste` to match `wrangler.jsonc`.
    Set the build variable `NODE_VERSION` to `22` and use the pnpm version declared
    in `package.json`. Save the connection.
 4. Under **Settings > Build > Branch control**, enable **Preview Builds** for all
@@ -20,7 +22,8 @@ verifies changes; it holds no Cloudflare API token.
    Configure Preview bindings and variables in Cloudflare; Previews have their
    own settings. Enable the GitHub pull request comments integration when offered.
 5. Confirm the production custom domain is `taste.akacronos.com`, matching
-   `wrangler.jsonc`. After merging, check the production build and `/api/health`.
+   `wrangler.jsonc`. After merging, check the production build, deploy the
+   uploaded version, and check `/api/health`.
    Push a PR branch and check that Cloudflare posts a working Preview URL.
 
 A preview does not deploy to the production custom domain. Review contributions
