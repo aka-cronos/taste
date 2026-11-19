@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "uiFiles": [
+    "src/routes/**/*.tsx",
+    "src/components/**",
+    "src/hooks/**",
+    "src/styles.css",
+    "!src/**/*.test.tsx"
+  ],
+  "sensitiveZones": {
+    "money": [],
+    "access": [],
+    "migrations": []
+  },
+  "docsFiles": [],
+  "e2eDir": "tests/",
+  "lowRiskLane": false,
+  "environments": {
+    "staging": null,
+    "production": null
+  }
+}
