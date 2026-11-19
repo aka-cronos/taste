@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "uiFiles": [
+    "src/routes/**/*.tsx",
+    "src/components/**",
+    "src/hooks/**",
+    "src/styles.css",
+    "!src/**/*.test.tsx"
+  ],
+  "sensitiveZones": {
+    "money": [],
+    "access": [
+      "src/lib/auth/**",
+      "src/routes/api/auth/**",
+      "src/routes/\\[.]well-known/**",
+      "src/routes/mcp.ts",
+      "src/lib/mcp/handler.ts",
+      "src/routes/mcp_.authorize.tsx",
+      "src/lib/items/media.ts",
+      "src/routes/media/**",
+      "src/lib/items/item-view.ts"
+    ],
+    "migrations": ["migrations/**"]
+  },
+  "docsFiles": [],
+  "e2eDir": "tests/",
+  "lowRiskLane": false,
+  "environments": {
+    "staging": null,
+    "production": {
+      "url": "https://taste.akacronos.com",
+      "deploy": "manual"
+    }
+  }
+}

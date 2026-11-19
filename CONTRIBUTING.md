@@ -21,5 +21,6 @@ with a conventional prefix such as `fix:`, `feat:`, or `chore:`. Link the agreed
 issue with `Closes #<number>`, describe the behavior change, and record validation.
 Keep examples synthetic; exclude real secrets and personal data.
 
-Run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, and `pnpm build`
-before requesting review. The `verify` check must pass before squash merging.
+Run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`
+and `pnpm test:e2e` before requesting review. The `ci` and `e2e` checks must pass
+before squash merging.
