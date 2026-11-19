@@ -1,6 +1,6 @@
 name: Bug report
 description: Report unexpected behavior.
-labels: [ needs-triage ]
+labels: [ bug, needs-triage ]
 body:
   - type: markdown
     attributes:
