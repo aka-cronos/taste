@@ -3,9 +3,9 @@ name: Agent block
 
 on:
   issue_comment:
-    types: [created, edited, deleted]
+    types: [ created, edited, deleted ]
   pull_request_review:
-    types: [submitted, edited]
+    types: [ submitted, edited ]
   status:
 
 permissions: {}

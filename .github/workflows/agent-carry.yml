@@ -5,8 +5,8 @@ name: Agent carry
 
 on:
   workflow_run:
-    workflows: [CI, Agent zones]
-    types: [completed]
+    workflows: [ CI, Agent zones ]
+    types: [ completed ]
 
 permissions: {}
 
