@@ -1,9 +1,10 @@
 # Template for .dev.vars. Render with `envsync` from the repo root.
-# Values live in 1Password: vault `dev`, item `taste`. Local development only:
+# Values live in 1Password: vault `taste`, item `taste`, read by this
+# project's own service account. Local development only:
 # the Google OAuth client here is a separate testing client, also used by
-# trusted Previews. Production secrets live in Cloudflare and never go in `dev`.
-OWNER_EMAIL={{ op://dev/taste/OWNER_EMAIL }}
+# trusted Previews. Production secrets live in Cloudflare, never in 1Password.
+OWNER_EMAIL={{ op://taste/taste/OWNER_EMAIL }}
 BETTER_AUTH_URL=http://localhost:3000
-BETTER_AUTH_SECRET={{ op://dev/taste/BETTER_AUTH_SECRET }}
-GOOGLE_CLIENT_ID={{ op://dev/taste/GOOGLE_CLIENT_ID }}
-GOOGLE_CLIENT_SECRET={{ op://dev/taste/GOOGLE_CLIENT_SECRET }}
+BETTER_AUTH_SECRET={{ op://taste/taste/BETTER_AUTH_SECRET }}
+GOOGLE_CLIENT_ID={{ op://taste/taste/GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET={{ op://taste/taste/GOOGLE_CLIENT_SECRET }}
