@@ -53,8 +53,11 @@ Manage `protect-main` directly in the repository's **Settings > Rules > Rulesets
 on GitHub. The repository does not store or synchronize a ruleset payload.
 
 Before activating it, open a PR containing the CI workflow and wait until its
-`verify` check has reported at least once. Select that check from GitHub Actions
-as required. The `audit` job is informational and is not a required status check.
+`ci` and `e2e` checks have reported at least once. Select both from GitHub
+Actions as required. The `audit` job is informational and is not a required
+status check. The agent process statuses (`verify`, `review/spec`,
+`review/design`, `risk`) are commit statuses set by the owner's token, so
+require them from any source, once something in the process sets them.
 
 If the ruleset already exists, inspect and update it rather than creating a
 duplicate. Confirm it is active with no bypass actors before merging.

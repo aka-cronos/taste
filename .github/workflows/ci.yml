@@ -9,9 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  # Keep this check name aligned with the protect-main ruleset in GitHub.
-  # Ensure it reports on every PR; path filters can block merges.
-  verify:
+  # Keep the ci and e2e check names aligned with the protect-main ruleset
+  # in GitHub. Ensure they report on every PR; path filters can block
+  # merges. `verify` is a process status set by the verifier, not a job.
+  ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
