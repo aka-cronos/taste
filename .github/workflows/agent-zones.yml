@@ -1,0 +1,17 @@
+# Copy to .github/workflows/agent-zones.yml in the project.
+name: Agent zones
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  zones:
+    uses: aka-cronos/agent-workflows/.github/workflows/zones.yml@v1
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write

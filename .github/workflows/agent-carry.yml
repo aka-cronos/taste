@@ -1,0 +1,21 @@
+# Copy to .github/workflows/agent-carry.yml in the project.
+# List the project's CI workflows by their `name:`, plus "Agent zones", so the
+# carry runs again whenever the last check on a commit finishes.
+name: Agent carry
+
+on:
+  workflow_run:
+    workflows: [CI, Agent zones]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  carry:
+    if: github.event.workflow_run.event == 'pull_request'
+    uses: aka-cronos/agent-workflows/.github/workflows/carry.yml@v1
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: write

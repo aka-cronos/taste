@@ -1,0 +1,21 @@
+# Copy to .github/workflows/agent-block.yml in the project.
+name: Agent block
+
+on:
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request_review:
+    types: [submitted, edited]
+  status:
+
+permissions: {}
+
+jobs:
+  agents-block:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    uses: aka-cronos/agent-workflows/.github/workflows/agents-block.yml@v1
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+      statuses: read
