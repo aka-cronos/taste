@@ -19,6 +19,7 @@ Without `envsync` (no access to the maintainer's vault), copy `.dev.vars.example
 - **Database and images**: the local D1 database and R2 bucket live in `.wrangler/state/` inside the worktree, so every worktree has its own. Nothing is shared with other worktrees, Previews or production.
 - **Port**: pick a port no other worktree uses; `lsof -iTCP:<port> -sTCP:LISTEN` shows whether one is taken.
 - **Tests**: `pnpm test` runs against an in-memory SQLite database and needs no dev server.
+- **e2e flows**: `pnpm test:e2e` starts its own dev server on a free port against this worktree's database; `APP_URL=http://localhost:<port> pnpm test:e2e` reuses a running one. The first run needs a browser: `pnpm exec e2e-web install chromium`. Keep telemetry off with `pnpm exec e2e telemetry disable` once per machine.
 
 ## Known limit: owner sign-in
 
