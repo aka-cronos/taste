@@ -9,8 +9,18 @@
   ],
   "sensitiveZones": {
     "money": [],
-    "access": [],
-    "migrations": []
+    "access": [
+      "src/lib/auth/**",
+      "src/routes/api/auth/**",
+      "src/routes/\\[.]well-known/**",
+      "src/routes/mcp.ts",
+      "src/lib/mcp/handler.ts",
+      "src/routes/mcp_.authorize.tsx",
+      "src/lib/items/media.ts",
+      "src/routes/media/**",
+      "src/lib/items/item-view.ts"
+    ],
+    "migrations": ["migrations/**"]
   },
   "docsFiles": [],
   "e2eDir": "tests/",
