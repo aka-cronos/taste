@@ -25,6 +25,10 @@
   },
   "linter": {
     "rules": {
+      "nursery": {
+        // Warn until #90 removes the existing casts, then error.
+        "noUnsafeTypeAssertion": "warn"
+      },
       "performance": {
         // Inline handlers on JSX props are standard in React and Base UI.
         "noJsxPropsBind": "off"
@@ -32,6 +36,16 @@
     }
   },
   "overrides": [
+    {
+      // Ultracite allows `any` in tests; this project does not.
+      "includes": [
+        "**/*.{test,spec,test-d,spec-d}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
+        "**/__tests__/**/*"
+      ],
+      "linter": {
+        "rules": { "suspicious": { "noExplicitAny": "error" } }
+      }
+    },
     {
       // Plain JS: types inferred from literal data make every optional field
       // look always-present.
