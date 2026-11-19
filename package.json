@@ -16,6 +16,7 @@
     "lint": "biome check --formatter-enabled=false .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "e2e run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -43,12 +44,14 @@
     "@biomejs/biome": "^2.6.6",
     "@cloudflare/vite-plugin": "^1.68.0",
     "@cloudflare/workers-types": "^5.20261110.1",
+    "@e2e-dev/web": "0.16.0",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "e2e": "0.23.1",
     "jsdom": "^31.0.0",
     "shadcn": "^4.23.0",
     "tailwindcss": "^4.3.5",
