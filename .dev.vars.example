@@ -30,3 +30,10 @@ CONTACT_URL=
 # Configure Preview values in wrangler.jsonc and Preview-only secrets in Cloudflare.
 OAUTH_PROXY_URL=
 AUTH_PREVIEW_HOST=
+
+# Optional password for the test login at `/test-login`, used by e2e and
+# automated verification to sign in as the owner without Google. It works only
+# when BETTER_AUTH_URL is http on localhost or 127.0.0.1 and no OAuth proxy is
+# set, and needs at least 24 characters. Generate one with
+# `openssl rand -hex 24`. Never set it in production or on Previews.
+TEST_LOGIN_PASSWORD=

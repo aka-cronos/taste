@@ -19,9 +19,10 @@ An MCP client connects to `<origin>/mcp`, discovers OAuth endpoints, registers d
 - `POST /mcp` without an `Authorization` header → returns HTTP `401` with `WWW-Authenticate` header pointing to `/.well-known/oauth-protected-resource`.
 - `GET /.well-known/oauth-protected-resource` → returns HTTP `200` JSON advertising the `/mcp` resource and authorization server.
 - Open `/mcp/authorize` while signed out → renders `Connect to Taste`, `Sign in as owner`, and `Cancel` buttons.
-- Authenticated MCP tool calls and consent approval → require an owner session to complete OAuth authorization (blocked on #93).
+- With the `owner` session, `mcpAccessToken` in `tests/support/mcp.ts` registers a client, opens `/api/auth/oauth2/authorize` with PKCE, approves on `/mcp/authorize`, captures the code from the redirect and exchanges it; `callTool` then calls `/mcp` with the bearer token. `tests/93-test-login.e2e.ts` saves a note with `save_item` and finds it in `/inbox`.
 
 ## Gotchas
 
-- Authenticated MCP flows cannot run automatically until the non-production test login (#93) lands.
+- The consent button stays disabled until the page hydrates; a click before that would drop the authorization request.
+- Each `save_item` run adds a row to the local inbox; `pnpm db:seed` leaves non-seed rows in place.
 - `/mcp` calls `ensureAuthSchema()` on first request; the auth tables are created automatically in local D1 without a separate migration.

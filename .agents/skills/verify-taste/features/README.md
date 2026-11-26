@@ -8,3 +8,4 @@ User-facing features and their routes. Search `tests/` (the `e2eDir` in `.agents
 | Item detail & editor | `/?item=<id>`, `/items/$id` | Public read; owner edits | [item-detail.md](item-detail.md) |
 | Inbox & discarded | `/inbox`, `/inbox/discarded` | Owner only | [inbox.md](inbox.md) |
 | MCP server & OAuth | `/mcp`, `/mcp/authorize`, `/.well-known/*` | OAuth bearer token (owner) | [mcp.md](mcp.md) |
+| Test login (local dev and CI only) | `/test-login`, `POST /api/auth/test-login` | `TEST_LOGIN_PASSWORD`; `Page not found` elsewhere | [SKILL.md](../SKILL.md#drive) |

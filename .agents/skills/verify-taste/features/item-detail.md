@@ -22,5 +22,5 @@ Click any card in the gallery on `/` to open the drawer, or navigate directly to
 
 ## Gotchas
 
-- Owner editing, publishing, and deleting require an owner session (pending #93).
+- Owner editing, publishing, and deleting require an owner session; use the `owner` session from the test login.
 - Inbox items never emit Open Graph or Twitter share tags even when viewed by the owner.

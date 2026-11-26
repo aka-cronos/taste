@@ -1,4 +1,8 @@
-import { createFileRoute, useLocation } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  useHydrated,
+  useLocation,
+} from '@tanstack/react-router'
 import { useState } from 'react'
 import { useAppForm } from '@/components/forms/app-form'
 import { Button } from '@/components/ui/button'
@@ -11,6 +15,9 @@ export const Route = createFileRoute('/mcp_/authorize')({
 
 function Authorize() {
   const owner = useOwner()
+  // A click before hydration would submit the form natively and drop the
+  // authorization request from the URL.
+  const hydrated = useHydrated()
   const [error, setError] = useState<string | null>(null)
   const search = useLocation({ select: location => location.searchStr })
   const query = new URLSearchParams(search)
@@ -65,7 +72,7 @@ function Authorize() {
               form.handleSubmit()
             }}
           >
-            <form.SubmitButton>
+            <form.SubmitButton disabled={!hydrated}>
               {canWrite ? 'Allow read and write access' : 'Allow read access'}
             </form.SubmitButton>
           </form>

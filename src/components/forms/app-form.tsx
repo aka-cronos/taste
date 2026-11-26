@@ -111,7 +111,14 @@ interface TextProps {
   maxLength?: number
   placeholder?: string
 }
-function TextField({ label, description, ...props }: TextProps) {
+function TextField({
+  label,
+  description,
+  ...props
+}: TextProps & {
+  autoComplete?: string
+  type?: 'email' | 'password' | 'text' | 'url'
+}) {
   const control = useFieldControl<string>()
   return (
     <Frame control={control} description={description} label={label}>

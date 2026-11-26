@@ -10,6 +10,13 @@ The app is one Cloudflare Worker (`taste`) with a D1 database (`DB`) and an R2 b
 
 There is no staging. The check after a merge runs in production, after the owner's go.
 
+## Test login
+
+Local dev and CI have a password sign-in at `/test-login` so e2e flows and agents can act as the owner without Google (#93). It is on only when `BETTER_AUTH_URL` is http on `localhost` or `127.0.0.1`, no OAuth proxy is set, and `TEST_LOGIN_PASSWORD` has at least 24 characters, so it never exists in production or on Previews.
+
+- **Local**: `envsync` renders `TEST_LOGIN_PASSWORD` into `.dev.vars` from the vault (`taste` item, field `TEST_LOGIN_PASSWORD`).
+- **CI**: the `e2e` job generates a new password for each run; there is no repository secret.
+
 ## Production deploy
 
 Merging to `main` builds the Worker in Cloudflare Workers Builds and uploads a new version (`wrangler versions upload`) without serving it. The owner makes it live:

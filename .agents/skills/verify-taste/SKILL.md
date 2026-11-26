@@ -57,14 +57,14 @@ Run the read-only doctor script before driving and again after any unexpected fa
 
 It checks that the recorded PID is alive (when `.e2e/app.pid` exists), `HEAD` matches the expected commit (when given), `/api/health` reports `d1: true`, `r2: true`, `ok: true`, and `/` responds with HTTP 200.
 
-**Test login status (pending #93)**: Taste does not yet have a non-production test login. Criteria that require an authenticated owner session cannot be driven automatically yet and end the round as `pending` (`waiting on owner: non-production test login (#93)`).
+**Test login**: owner flows are driven through the non-production test login at `/test-login`. It is on only when `BETTER_AUTH_URL` is http on `localhost` or `127.0.0.1`, no OAuth proxy is set, and `TEST_LOGIN_PASSWORD` in `.dev.vars` has at least 24 characters; otherwise `/test-login` renders `Page not found`. `envsync` renders the password from the vault; without it, set one with `openssl rand -hex 24`. Never use it against production or Previews.
 
 ## Drive
 
 - Walk the running app through `e2e mcp` pointed at `http://127.0.0.1:<port>`.
-- **Test login**: pending #93. Once #93 lands, add the `test.setup` file path, restored session name, and env var name here.
+- **Test login**: `tests/auth.setup.e2e.ts` signs in at `/test-login` with `credentials.user('owner')` (username `OWNER_EMAIL`, password `TEST_LOGIN_PASSWORD`, both read from the environment or `.dev.vars`) and saves session `owner`. Restore it with `{ session: 'owner' }`. In an `e2e mcp` walk, open `/test-login`, type the `owner` password and press `Sign in as test owner`; it lands on `/inbox`.
 - **Synthetic data**: `pnpm db:seed` inserts deterministic items `seed-01` through `seed-09` (published) and `seed-10` through `seed-11` (inbox, hidden from public routes), plus generated SVG images in local R2. Rerunning `pnpm db:seed` replaces `seed-*` rows and leaves other rows intact.
-- **MCP server**: endpoint is `http://127.0.0.1:<port>/mcp`. Unauthenticated requests return `401` with a `WWW-Authenticate` header pointing to `/.well-known/oauth-protected-resource`. Authenticated MCP tool calls (`search_items`, `get_item`, `list_tags`, `save_item`, `update_item`) require an OAuth access token obtained from an owner session (pending #93).
+- **MCP server**: endpoint is `http://127.0.0.1:<port>/mcp`. Unauthenticated requests return `401` with a `WWW-Authenticate` header pointing to `/.well-known/oauth-protected-resource`. Authenticated MCP tool calls (`search_items`, `get_item`, `list_tags`, `save_item`, `update_item`) require an OAuth access token. `tests/support/mcp.ts` gets one through the real flow with the `owner` session (`mcpAccessToken`) and calls tools with `callTool`; see `tests/93-test-login.e2e.ts`.
 - **Feature map**: see [features/README.md](features/README.md) for routes, user journeys, and gotchas.
 
 ## Evidence

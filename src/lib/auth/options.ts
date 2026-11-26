@@ -7,14 +7,15 @@ import {
 } from 'better-auth/api'
 import { jwt, oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
+import { isLocalAuthURL } from '@/lib/auth/local'
 import {
   isOwnerEmail,
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
+import { testLoginPlugins } from '@/lib/auth/test-login'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
 // Exact loopback host and port; `localhost.evil.example` and the like fall back.
 const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1):\d{1,5}$/u
 
@@ -28,7 +29,9 @@ export type AuthEnv = Pick<
   | 'OWNER_EMAIL'
 > &
   Partial<
-    Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string>
+    Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string> & {
+      TEST_LOGIN_PASSWORD: string
+    }
   >
 
 export function createAuthOptions(env: AuthEnv, request?: Request) {
@@ -85,12 +88,6 @@ export function bindsAuthToRequest(env: AuthEnv) {
   )
 }
 
-/** Local development: `BETTER_AUTH_URL` is plain HTTP on a loopback host. */
-function isLocalAuthURL(authURL: string) {
-  const url = new URL(authURL)
-  return url.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(url.hostname)
-}
-
 /**
  * The request's own origin when it is served on a loopback host and port, so
  * any local port can sign in; any other host gets `fallback`.
@@ -102,7 +99,16 @@ function loopbackOrigin(request: Request, fallback: string) {
 
 function baseAuthOptions(env: AuthEnv) {
   return {
-    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
+    advanced: {
+      ipAddress: {
+        // Cloudflare sets `cf-connecting-ip` and clients cannot forge it there.
+        // Locally any client can, so no header is trusted and requests share
+        // one rate limit bucket per path (the test login's cap included).
+        ipAddressHeaders: isLocalAuthURL(env.BETTER_AUTH_URL)
+          ? []
+          : ['cf-connecting-ip'],
+      },
+    },
     appName: 'Taste',
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,
@@ -124,7 +130,11 @@ function baseAuthOptions(env: AuthEnv) {
       }),
     },
     // Must stay last so it can set the cookies of the other plugins' responses.
-    plugins: [...mcpPlugins(env), tanstackStartCookies()],
+    plugins: [
+      ...mcpPlugins(env),
+      ...testLoginPlugins(env),
+      tanstackStartCookies(),
+    ],
     rateLimit: { enabled: true, storage: 'database' },
     secret: env.BETTER_AUTH_SECRET,
     session: {

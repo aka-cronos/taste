@@ -17,9 +17,9 @@ Sign in as the owner and click `Inbox` in the top header, then navigate to disca
 
 - **Preconditions**: Local DB seeded with `pnpm db:seed` (`seed-10` and `seed-11` are inbox items).
 - Signed out: navigate to `/inbox` and `/inbox/discarded` → both render `Page not found` with a `Back to the gallery` link, and neither exposes inbox item titles or descriptions.
-- Signed in as owner: open `/inbox` → shows `Inbox image` and `Inbox note` (blocked on #93 until non-production test login exists).
+- Signed in as owner (`{ session: 'owner' }`, see `tests/93-test-login.e2e.ts`): open `/inbox` → shows the `Inbox views` navigation and, after `pnpm db:seed`, `Inbox image` and `Inbox note`.
 
 ## Gotchas
 
-- Authenticated inbox and discarded flows cannot run automatically until the non-production test login (#93) lands. Report criteria requiring an owner session as `pending` (`waiting on owner: non-production test login (#93)`).
+- The owner session comes from the test login at `/test-login`, not Google; see the skill's Drive section.
 - Local Google OAuth sign-in completes only on `http://localhost:3000`–`3009`, the redirect URIs registered with Google; on `127.0.0.1` it stops at `redirect_uri_mismatch`.
