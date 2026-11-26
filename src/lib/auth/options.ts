@@ -99,7 +99,16 @@ function loopbackOrigin(request: Request, fallback: string) {
 
 function baseAuthOptions(env: AuthEnv) {
   return {
-    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
+    advanced: {
+      ipAddress: {
+        // Cloudflare sets `cf-connecting-ip` and clients cannot forge it there.
+        // Locally any client can, so no header is trusted and requests share
+        // one rate limit bucket per path (the test login's cap included).
+        ipAddressHeaders: isLocalAuthURL(env.BETTER_AUTH_URL)
+          ? []
+          : ['cf-connecting-ip'],
+      },
+    },
     appName: 'Taste',
     basePath: '/api/auth',
     baseURL: env.BETTER_AUTH_URL,

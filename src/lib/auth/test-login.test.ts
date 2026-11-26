@@ -41,11 +41,11 @@ async function setup(overrides: Partial<AuthEnv> = {}) {
   await runMigrations()
   const auth = betterAuth(options)
   const { origin } = new URL(env.BETTER_AUTH_URL)
-  const signIn = (password: string) =>
+  const signIn = (password: string, headers: Record<string, string> = {}) =>
     auth.handler(
       new Request(`${origin}/api/auth/test-login`, {
         body: JSON.stringify({ password }),
-        headers: { 'content-type': 'application/json', origin },
+        headers: { 'content-type': 'application/json', origin, ...headers },
         method: 'POST',
       }),
     )
@@ -148,6 +148,22 @@ describe('test login endpoint', () => {
     for (let attempt = 0; attempt < 11; attempt += 1) {
       // biome-ignore lint/performance/noAwaitInLoops: attempts must hit the limiter in order
       statuses.push((await signIn('wrong')).status)
+    }
+    expect(statuses.slice(0, 10)).toEqual(new Array(10).fill(401))
+    expect(statuses[10]).toBe(429)
+  })
+
+  it('caps attempts even when the client rotates its IP headers', async () => {
+    const { signIn } = await setup()
+    const statuses: number[] = []
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      const ip = `203.0.113.${attempt + 1}`
+      // biome-ignore lint/performance/noAwaitInLoops: attempts must hit the limiter in order
+      const response = await signIn('wrong', {
+        'cf-connecting-ip': ip,
+        'x-forwarded-for': ip,
+      })
+      statuses.push(response.status)
     }
     expect(statuses.slice(0, 10)).toEqual(new Array(10).fill(401))
     expect(statuses[10]).toBe(429)
