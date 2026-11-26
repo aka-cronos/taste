@@ -3,7 +3,8 @@ import { APIError, createAuthEndpoint } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
 import { constantTimeEqual } from 'better-auth/crypto'
 import { z } from 'zod'
-import { isOwnerEmail, normalizeEmail } from '@/lib/auth/owner'
+import { isLocalAuthURL } from '@/lib/auth/local'
+import { normalizeEmail } from '@/lib/auth/owner'
 
 /**
  * A password sign-in for the owner, for automated verification only. It never
@@ -11,8 +12,6 @@ import { isOwnerEmail, normalizeEmail } from '@/lib/auth/owner'
  */
 
 export const TEST_LOGIN_MIN_LENGTH = 24
-
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1'])
 
 export interface TestLoginEnv {
   BETTER_AUTH_URL?: string
@@ -31,18 +30,14 @@ export interface TestLoginEnv {
  */
 export function testLoginPassword(env: TestLoginEnv): string | null {
   const password = env.TEST_LOGIN_PASSWORD ?? ''
-  if (password.length < TEST_LOGIN_MIN_LENGTH || env.OAUTH_PROXY_URL?.trim()) {
+  if (
+    password.length < TEST_LOGIN_MIN_LENGTH ||
+    env.OAUTH_PROXY_URL?.trim() ||
+    !isLocalAuthURL(env.BETTER_AUTH_URL)
+  ) {
     return null
   }
-  let url: URL
-  try {
-    url = new URL(env.BETTER_AUTH_URL ?? '')
-  } catch {
-    return null
-  }
-  return url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname)
-    ? password
-    : null
+  return password
 }
 
 /** The test login plugin, or nothing when the test login is off. */
@@ -66,12 +61,12 @@ function testLogin(password: string, ownerEmail: string) {
               message: 'Wrong test login password.',
             })
           }
-          if (!isOwnerEmail(ownerEmail, ownerEmail)) {
+          const email = normalizeEmail(ownerEmail)
+          if (!email) {
             throw new APIError('FORBIDDEN', {
               message: 'Set OWNER_EMAIL to use the test login.',
             })
           }
-          const email = normalizeEmail(ownerEmail)
           const found = await ctx.context.internalAdapter.findUserByEmail(email)
           // A new row still goes through `validateUserInfo`, the owner gate.
           const user =

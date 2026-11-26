@@ -7,6 +7,7 @@ import {
 } from 'better-auth/api'
 import { jwt, oAuthProxy } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
+import { isLocalAuthURL } from '@/lib/auth/local'
 import {
   isOwnerEmail,
   NOT_AUTHORIZED,
@@ -15,7 +16,6 @@ import {
 import { testLoginPlugins } from '@/lib/auth/test-login'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
 // Exact loopback host and port; `localhost.evil.example` and the like fall back.
 const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1):\d{1,5}$/u
 
@@ -86,12 +86,6 @@ export function bindsAuthToRequest(env: AuthEnv) {
   return (
     Boolean(env.OAUTH_PROXY_URL?.trim()) || isLocalAuthURL(env.BETTER_AUTH_URL)
   )
-}
-
-/** Local development: `BETTER_AUTH_URL` is plain HTTP on a loopback host. */
-function isLocalAuthURL(authURL: string) {
-  const url = new URL(authURL)
-  return url.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(url.hostname)
 }
 
 /**
