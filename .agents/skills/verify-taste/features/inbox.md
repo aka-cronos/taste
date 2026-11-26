@@ -17,7 +17,7 @@ Sign in as the owner and click `Inbox` in the top header, then navigate to disca
 
 - **Preconditions**: Local DB seeded with `pnpm db:seed` (`seed-10` and `seed-11` are inbox items).
 - Signed out: navigate to `/inbox` and `/inbox/discarded` → both render `Page not found` with a `Back to the gallery` link, and neither exposes inbox item titles or descriptions.
-- Signed in as owner (`{ session: 'owner' }`, see `tests/owner.e2e.ts`): open `/inbox` → shows the `Inbox views` navigation and, after `pnpm db:seed`, `Inbox image` and `Inbox note`.
+- Signed in as owner (`{ session: 'owner' }`, see `tests/93-test-login.e2e.ts`): open `/inbox` → shows the `Inbox views` navigation and, after `pnpm db:seed`, `Inbox image` and `Inbox note`.
 
 ## Gotchas
 

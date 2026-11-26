@@ -19,7 +19,7 @@ An MCP client connects to `<origin>/mcp`, discovers OAuth endpoints, registers d
 - `POST /mcp` without an `Authorization` header → returns HTTP `401` with `WWW-Authenticate` header pointing to `/.well-known/oauth-protected-resource`.
 - `GET /.well-known/oauth-protected-resource` → returns HTTP `200` JSON advertising the `/mcp` resource and authorization server.
 - Open `/mcp/authorize` while signed out → renders `Connect to Taste`, `Sign in as owner`, and `Cancel` buttons.
-- With the `owner` session, `mcpAccessToken` in `tests/support/mcp.ts` registers a client, opens `/api/auth/oauth2/authorize` with PKCE, approves on `/mcp/authorize`, captures the code from the redirect and exchanges it; `callTool` then calls `/mcp` with the bearer token. `tests/mcp.e2e.ts` saves a note with `save_item` and finds it in `/inbox`.
+- With the `owner` session, `mcpAccessToken` in `tests/support/mcp.ts` registers a client, opens `/api/auth/oauth2/authorize` with PKCE, approves on `/mcp/authorize`, captures the code from the redirect and exchanges it; `callTool` then calls `/mcp` with the bearer token. `tests/93-test-login.e2e.ts` saves a note with `save_item` and finds it in `/inbox`.
 
 ## Gotchas
 
