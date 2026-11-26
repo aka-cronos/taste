@@ -13,7 +13,16 @@ const ORIGIN = 'https://taste.example.com'
 const OWNER = 'owner@example.com'
 const CHALLENGE_SCOPE = /scope="(?<scope>[^"]+)"/u
 
-async function setup(origin = ORIGIN, preview = false, write = false) {
+type Mode = 'direct' | 'local' | 'preview'
+
+const AUTH_URLS: Record<Mode, string> = {
+  direct: ORIGIN,
+  local: 'http://localhost:3000',
+  preview: 'https://auth-taste.example.workers.dev',
+}
+
+async function setup(origin = ORIGIN, mode: Mode = 'direct', write = false) {
+  const preview = mode === 'preview'
   const { db, sqlite } = createTestD1()
   const scope = write
     ? 'mcp:read mcp:write offline_access'
@@ -31,9 +40,7 @@ async function setup(origin = ORIGIN, preview = false, write = false) {
           }
         : {}),
       BETTER_AUTH_SECRET: 'test-secret-with-at-least-32-characters',
-      BETTER_AUTH_URL: preview
-        ? 'https://auth-taste.example.workers.dev'
-        : ORIGIN,
+      BETTER_AUTH_URL: AUTH_URLS[mode],
       DB: db,
       GOOGLE_CLIENT_ID: 'client',
       GOOGLE_CLIENT_SECRET: 'secret',
@@ -43,6 +50,12 @@ async function setup(origin = ORIGIN, preview = false, write = false) {
   )
   const options = {
     ...base,
+    // Better Auth skips the origin check under test unless it is turned on.
+    advanced: {
+      ...base.advanced,
+      disableCSRFCheck: false,
+      disableOriginCheck: false,
+    },
     database: sqlite,
     plugins: base.plugins.filter(
       plugin => plugin.id !== 'tanstack-start-cookies',
@@ -112,11 +125,24 @@ async function tokenFor(state: Awaited<ReturnType<typeof setup>>) {
   const consent = new URL(response.headers.get('location') ?? '', state.origin)
   expect(consent.pathname).toBe('/mcp/authorize')
   expect(consent.searchParams.get('scope')).toBe(state.scope)
-  const approval = await state.auth.api.oauth2Consent({
-    body: { accept: true, oauth_query: consent.search.slice(1) },
-    headers: state.headers,
-  })
-  const code = new URL(approval.url).searchParams.get('code')
+  // Consent goes through the handler, as the browser posts it with the
+  // session cookie and its origin.
+  const approval = await state.auth.handler(
+    new Request(`${state.origin}/api/auth/oauth2/consent`, {
+      body: JSON.stringify({
+        accept: true,
+        oauth_query: consent.search.slice(1),
+      }),
+      headers: new Headers({
+        ...Object.fromEntries(state.headers),
+        'content-type': 'application/json',
+      }),
+      method: 'POST',
+    }),
+  )
+  expect(approval.status, await approval.clone().text()).toBe(200)
+  const { url } = (await approval.json()) as { url: string }
+  const code = new URL(url).searchParams.get('code')
   const exchange = await state.auth.handler(
     new Request(`${state.origin}/api/auth/oauth2/token`, {
       body: new URLSearchParams({
@@ -483,12 +509,17 @@ describe('private MCP OAuth', () => {
     expect(callback.searchParams.has('code')).toBe(false)
   })
   it.each([
-    'https://feature-one-taste.example.workers.dev',
-    'https://another-branch-taste.example.workers.dev',
-  ])(
-    'keeps discovery, PKCE tokens and MCP on preview origin %s',
-    async origin => {
-      const state = await setup(origin, true)
+    ['https://feature-one-taste.example.workers.dev', 'preview'],
+    ['https://another-branch-taste.example.workers.dev', 'preview'],
+    ['http://localhost:3001', 'local'],
+    [
+      `http://127.0.0.1:${40_000 + Math.floor(Math.random() * 20_000)}`,
+      'local',
+    ],
+  ] as const)(
+    'keeps discovery, PKCE tokens and MCP on origin %s (%s)',
+    async (origin, mode) => {
+      const state = await setup(origin, mode)
       const challenge = await state.handle(
         new Request(`${origin}/mcp`, { method: 'POST' }),
       )
@@ -618,7 +649,7 @@ describe('private MCP OAuth', () => {
   })
 
   it('saves base64 and URL images into the inbox, merges duplicates and only edits metadata', async () => {
-    const state = await setup(ORIGIN, false, true)
+    const state = await setup(ORIGIN, 'direct', true)
     const tokens = await tokenFor(state)
     const call = async (name: string, args: object) => {
       const response = await state.handle(

@@ -14,6 +14,9 @@ import {
 } from '@/lib/auth/owner'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
+// Exact loopback host and port; `localhost.evil.example` and the like fall back.
+const LOOPBACK_HOST = /^(?:localhost|127\.0\.0\.1):\d{1,5}$/u
 
 export type AuthEnv = Pick<
   Env,
@@ -63,7 +66,38 @@ export function createAuthOptions(env: AuthEnv, request?: Request) {
       ],
     } satisfies BetterAuthOptions
   }
+  if (request && isLocalAuthURL(env.BETTER_AUTH_URL)) {
+    return baseAuthOptions({
+      ...env,
+      BETTER_AUTH_URL: loopbackOrigin(request, env.BETTER_AUTH_URL),
+    })
+  }
   return baseAuthOptions(env)
+}
+
+/**
+ * Whether auth must be built per request so OAuth, the MCP resource and the
+ * trusted origin follow the request: on Previews and in local development.
+ */
+export function bindsAuthToRequest(env: AuthEnv) {
+  return (
+    Boolean(env.OAUTH_PROXY_URL?.trim()) || isLocalAuthURL(env.BETTER_AUTH_URL)
+  )
+}
+
+/** Local development: `BETTER_AUTH_URL` is plain HTTP on a loopback host. */
+function isLocalAuthURL(authURL: string) {
+  const url = new URL(authURL)
+  return url.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(url.hostname)
+}
+
+/**
+ * The request's own origin when it is served on a loopback host and port, so
+ * any local port can sign in; any other host gets `fallback`.
+ */
+function loopbackOrigin(request: Request, fallback: string) {
+  const host = request.headers.get('host') ?? new URL(request.url).host
+  return LOOPBACK_HOST.test(host) ? `http://${host}` : fallback
 }
 
 function baseAuthOptions(env: AuthEnv) {
