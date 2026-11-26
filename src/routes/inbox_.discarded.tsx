@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { DiscardedView } from '@/components/inbox/discarded-view'
+import { NotFound } from '@/components/not-found'
 import { useOwner } from '@/lib/auth/use-owner'
 import { discardedQuery } from '@/lib/queries'
 
@@ -22,26 +23,15 @@ export const Route = createFileRoute('/inbox_/discarded')({
       revalidateIfStale: true,
     })
   },
-  notFoundComponent: DiscardedNotFound,
+  notFoundComponent: () => <NotFound />,
 })
 
 function DiscardedPage() {
   const owner = useOwner()
-  return owner ? <DiscardedData email={owner.email} /> : <DiscardedNotFound />
+  return owner ? <DiscardedData email={owner.email} /> : <NotFound />
 }
 
 function DiscardedData({ email }: { email: string }) {
   const { count, entries } = useSuspenseQuery(discardedQuery(email)).data
   return <DiscardedView count={count} entries={entries} />
-}
-
-function DiscardedNotFound() {
-  return (
-    <main className='flex flex-col items-center gap-3 px-4 py-24 text-center'>
-      <h1 className='font-heading text-2xl font-semibold'>Page not found</h1>
-      <Link className='underline underline-offset-4' to='/'>
-        Back to the gallery
-      </Link>
-    </main>
-  )
 }
