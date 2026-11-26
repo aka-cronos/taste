@@ -30,4 +30,4 @@ Open `/` directly or click `Taste` in the top header.
 - Image cards do not render their title as visible text; match them by accessible link name (`getByRole('link', 'Solstice poster')`), not `getByText`.
 - Inbox items (`seed-10`, `seed-11`) must never appear on `/` or in the public tag list.
 - Opening an item from the gallery uses a masked URL: browser address bar changes to `/items/<id>` while staying in the gallery drawer (`/?item=<id>`). Reloading navigates to the full `/items/<id>` page.
-- `Add` item drawer is only rendered when signed in as the owner (blocked on non-production test login #93).
+- `Add` item drawer is only rendered when signed in as the owner; use the `owner` session from the test login.
