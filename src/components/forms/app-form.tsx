@@ -126,6 +126,28 @@ function TextField({ label, description, ...props }: TextProps) {
     </Frame>
   )
 }
+function PasswordField({
+  label,
+  description,
+  autoComplete = 'current-password',
+}: Pick<TextProps, 'description' | 'label'> & {
+  autoComplete?: 'current-password' | 'new-password'
+}) {
+  const control = useFieldControl<string>()
+  return (
+    <Frame control={control} description={description} label={label}>
+      <Input
+        {...accessibility(control, description)}
+        autoComplete={autoComplete}
+        name={control.field.name}
+        onBlur={control.field.handleBlur}
+        onChange={e => control.change(e.target.value)}
+        type='password'
+        value={control.field.state.value}
+      />
+    </Frame>
+  )
+}
 function TextareaField({ label, description, ...props }: TextProps) {
   const control = useFieldControl<string>()
   return (
@@ -360,6 +382,7 @@ export const { useAppForm } = createFormHook({
   fieldComponents: {
     FileField,
     OptionGroupField,
+    PasswordField,
     SelectField,
     TagsField,
     TextareaField,

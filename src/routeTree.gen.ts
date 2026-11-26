@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as TestLoginRouteImport } from './routes/test-login'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as InboxDiscardedRouteImport } from './routes/inbox_.discarded'
@@ -33,6 +34,11 @@ const InboxRoute = InboxRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestLoginRoute = TestLoginRouteImport.update({
+  id: '/test-login',
+  path: '/test-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/mcp': typeof McpRoute
+  '/test-login': typeof TestLoginRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox/discarded': typeof InboxDiscardedRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/mcp': typeof McpRoute
+  '/test-login': typeof TestLoginRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox/discarded': typeof InboxDiscardedRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
   '/mcp': typeof McpRoute
+  '/test-login': typeof TestLoginRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/inbox_/discarded': typeof InboxDiscardedRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/inbox'
     | '/mcp'
+    | '/test-login'
     | '/.well-known/$'
     | '/api/health'
     | '/inbox/discarded'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/inbox'
     | '/mcp'
+    | '/test-login'
     | '/.well-known/$'
     | '/api/health'
     | '/inbox/discarded'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/inbox'
     | '/mcp'
+    | '/test-login'
     | '/.well-known/$'
     | '/api/health'
     | '/inbox_/discarded'
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InboxRoute: typeof InboxRoute
   McpRoute: typeof McpRoute
+  TestLoginRoute: typeof TestLoginRoute
   DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   InboxDiscardedRoute: typeof InboxDiscardedRoute
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test-login': {
+      id: '/test-login'
+      path: '/test-login'
+      fullPath: '/test-login'
+      preLoaderRoute: typeof TestLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/$': {
@@ -239,6 +259,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InboxRoute: InboxRoute,
   McpRoute: McpRoute,
+  TestLoginRoute: TestLoginRoute,
   DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   InboxDiscardedRoute: InboxDiscardedRoute,

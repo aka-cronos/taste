@@ -12,6 +12,7 @@ import {
   NOT_AUTHORIZED,
   NOT_AUTHORIZED_MESSAGE,
 } from '@/lib/auth/owner'
+import { testLoginPlugins } from '@/lib/auth/test-login'
 
 const PREVIEW_HOST = /^(?:\*-)?[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/u
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
@@ -28,7 +29,9 @@ export type AuthEnv = Pick<
   | 'OWNER_EMAIL'
 > &
   Partial<
-    Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string>
+    Record<keyof Pick<Env, 'OAUTH_PROXY_URL' | 'AUTH_PREVIEW_HOST'>, string> & {
+      TEST_LOGIN_PASSWORD: string
+    }
   >
 
 export function createAuthOptions(env: AuthEnv, request?: Request) {
@@ -124,7 +127,11 @@ function baseAuthOptions(env: AuthEnv) {
       }),
     },
     // Must stay last so it can set the cookies of the other plugins' responses.
-    plugins: [...mcpPlugins(env), tanstackStartCookies()],
+    plugins: [
+      ...mcpPlugins(env),
+      ...testLoginPlugins(env),
+      tanstackStartCookies(),
+    ],
     rateLimit: { enabled: true, storage: 'database' },
     secret: env.BETTER_AUTH_SECRET,
     session: {

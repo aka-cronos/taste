@@ -16,6 +16,7 @@
       "src/routes/mcp.ts",
       "src/lib/mcp/handler.ts",
       "src/routes/mcp_.authorize.tsx",
+      "src/routes/test-login.tsx",
       "src/lib/items/media.ts",
       "src/routes/media/**",
       "src/lib/items/item-view.ts"
