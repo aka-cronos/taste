@@ -22,4 +22,4 @@ Sign in as the owner and click `Inbox` in the top header, then navigate to disca
 ## Gotchas
 
 - Authenticated inbox and discarded flows cannot run automatically until the non-production test login (#93) lands. Report criteria requiring an owner session as `pending` (`waiting on owner: non-production test login (#93)`).
-- Local Google OAuth sign-in only works on port `3000` until #88 lands.
+- Local Google OAuth sign-in completes only on `http://localhost:3000`–`3009`, the redirect URIs registered with Google; on `127.0.0.1` it stops at `redirect_uri_mismatch`.

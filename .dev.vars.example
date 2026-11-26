@@ -9,6 +9,9 @@ OWNER_EMAIL=you@example.com
 
 # Public URL of the site, without a trailing slash. Google redirects to
 # `<BETTER_AUTH_URL>/api/auth/callback/google`.
+# Locally (http on localhost or 127.0.0.1), sign-in follows the dev server's
+# origin instead, so any port works; Google still accepts only the redirect URIs
+# registered on its client.
 BETTER_AUTH_URL=http://localhost:3000
 
 # Random secret that signs sessions, at least 32 characters.

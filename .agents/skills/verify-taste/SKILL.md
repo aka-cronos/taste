@@ -11,7 +11,7 @@ Project-specific facts for verifying Taste. Follow the verify playbook for the p
 
 - **Primary**: Web app (TanStack Start on Cloudflare Workers) — public gallery (`/`), item pages (`/items/$id`), owner inbox (`/inbox`, `/inbox/discarded`), and MCP OAuth consent (`/mcp/authorize`).
 - **Secondary**: Private MCP server (`/mcp`) with OAuth 2.1 discovery (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`) and health endpoint (`/api/health`).
-- **Isolation**: Each worktree has its own local D1 database and R2 bucket under `.wrangler/state/` and can run on its own port (`3000`–`3009`). Known limit: Google OAuth local sign-in redirects to `BETTER_AUTH_URL` (`http://localhost:3000`) until #88 lands.
+- **Isolation**: Each worktree has its own local D1 database and R2 bucket under `.wrangler/state/` and can run on its own port (`3000`–`3009`). Local auth follows the request's loopback origin, so cookie POSTs and MCP consent work on `127.0.0.1:<port>`; Google sign-in itself only completes on `http://localhost:3000`–`3009`.
 
 ## Launch
 
