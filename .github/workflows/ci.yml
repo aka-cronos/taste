@@ -45,6 +45,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Sample values only: e2e flows never reach Google or production.
       - run: cp .dev.vars.example .dev.vars
+      # A fresh test login password per run (#93): the app lives only on this
+      # runner, and pull requests from forks get no repository secrets.
+      - name: Generate the test login password
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          sed -i "s/^TEST_LOGIN_PASSWORD=.*/TEST_LOGIN_PASSWORD=$password/" .dev.vars
+          grep -q "^TEST_LOGIN_PASSWORD=$password$" .dev.vars
       - run: pnpm db:migrate:local
       - run: pnpm exec e2e-web install chromium --with-deps
       - run: pnpm test:e2e
